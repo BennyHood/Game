@@ -70,13 +70,21 @@
     if (goToCampBtn) {
       goToCampBtn.addEventListener('click', function() {
         closeSettings();
-        // Navigate to camp if CampWorld is available
-        if (window.updateCampScreen && typeof window.updateCampScreen === 'function') {
-          window.updateCampScreen();
-        } else if (window.CampWorld && window.CampWorld.enter && typeof window.CampWorld.enter === 'function') {
-          window.CampWorld.enter();
+        // ENGINE 2.0: Only redirect to index.html when running inside sandbox.
+        // When already on the camp hub (index.html), use in-page navigation instead
+        // to avoid an unnecessary full reload and avoid poisoning wds_fromSandbox.
+        if (window.location.pathname.endsWith('sandbox.html')) {
+          try {
+            localStorage.setItem('wds_fromSandbox', '1');
+          } catch (e) { /* ignore */ }
+          window.location.href = 'index.html';
         } else {
-          console.warn('[SettingsUI] Camp navigation functions not available');
+          // Already on camp hub — navigate in-page
+          if (typeof window.updateCampScreen === 'function') {
+            window.updateCampScreen();
+          } else {
+            console.warn('[Settings] updateCampScreen not available; cannot navigate to camp in-page.');
+          }
         }
       });
     }
