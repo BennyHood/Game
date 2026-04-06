@@ -102,7 +102,8 @@
 
         // Log the state for debugging
         const initOk = window.gameModuleReady && !window.gameInitError;
-        console.log('[Loading] Force booting to 3D camp — gameModuleReady:', window.gameModuleReady,
+        console.log('[Loading] Force booting to 3D camp — initOk:', initOk,
+          'gameModuleReady:', window.gameModuleReady,
           'initError:', !!window.gameInitError, 'returnFromSandbox:', returnFromSandbox);
 
         // Fade out loading screen
@@ -137,8 +138,25 @@
               // DO NOT fall back to main menu - keep camp visible
             }
           } else {
-            console.warn('[Loading] updateCampScreen not yet available - camp will initialize when ready');
-            // Camp screen still visible, will initialize when function becomes available
+            console.warn('[Loading] updateCampScreen not yet available - polling until ready (max 10s)');
+            // Poll for updateCampScreen to become available (100 × 100ms = 10s max)
+            var pollAttempts = 0;
+            var maxPollAttempts = 100;
+            var campPollInterval = setInterval(function() {
+              pollAttempts++;
+              if (typeof window.updateCampScreen === 'function') {
+                clearInterval(campPollInterval);
+                console.log('[Loading] updateCampScreen available after ' + pollAttempts + ' polls — initializing camp');
+                try {
+                  window.updateCampScreen();
+                } catch (pollErr) {
+                  console.error('[Loading] updateCampScreen (delayed) error:', pollErr);
+                }
+              } else if (pollAttempts >= maxPollAttempts) {
+                clearInterval(campPollInterval);
+                console.warn('[Loading] updateCampScreen never became available after 10s — camp may not initialize');
+              }
+            }, 100);
           }
         }, 500);
       }
