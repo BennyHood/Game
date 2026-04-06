@@ -401,10 +401,11 @@ DragonflyEnemy.prototype._stateSwarming = function(dt, playerPos, flock) {
   this.velocity.z += (_v0.z + _v2.z + _v3.z + _v4.z) * dt;
   this.velocity.y  = 0; // altitude controlled separately
 
-  // Velocity damping (frame-rate independent exponential decay)
-  var decay = Math.pow(1.0 - DF_CFG.VELOCITY_DAMPING, dt * 60);
-  this.velocity.x *= decay;
-  this.velocity.z *= decay;
+  // Velocity damping — linear approximation avoids Math.pow per frame.
+  // Equivalent to ~1.1% reduction per second at 60 fps; clamped so large dt can't go negative.
+  var dampFactor = Math.max(0, 1.0 - DF_CFG.VELOCITY_DAMPING * Math.min(dt * 60, 2.0));
+  this.velocity.x *= dampFactor;
+  this.velocity.z *= dampFactor;
 
   // Clamp to swarming speed
   var hSpeed = Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.z * this.velocity.z);
@@ -455,10 +456,11 @@ DragonflyEnemy.prototype._stateDiving = function(dt, playerPos) {
 
 // ─── STUNNED: knocked off course, loses control briefly ──────────────────────
 DragonflyEnemy.prototype._stateStunned = function(dt) {
-  // Exponential velocity decay while stunned
-  var decay = Math.pow(0.82, dt * 60);
-  this.velocity.x *= decay;
-  this.velocity.z *= decay;
+  // Velocity decay while stunned — linear approximation avoids Math.pow per frame.
+  // 18% reduction per second at 60 fps; clamped so large dt can't go negative.
+  var stunDecay = Math.max(0, 1.0 - 0.18 * Math.min(dt * 60, 2.0));
+  this.velocity.x *= stunDecay;
+  this.velocity.z *= stunDecay;
   this.velocity.y  = 0;
 
   this.mesh.position.x += this.velocity.x * dt;
@@ -751,7 +753,7 @@ var DragonflySwarmPool = {
     // Front-right pivot (mirrored)
     var pvFR = new THREE.Group();
     pvFR.position.set(-s * 0.08, s * 0.05, -s * 0.32);
-    var mFR = new THREE.Mesh(wFGeo.clone(), wingMatFront.clone());
+    var mFR = new THREE.Mesh(wFGeo, wingMatFront.clone());
     mFR.rotation.x = -Math.PI / 2;
     pvFR.add(mFR);
     group.add(pvFR);
@@ -769,7 +771,7 @@ var DragonflySwarmPool = {
     // Back-right pivot (mirrored)
     var pvBR = new THREE.Group();
     pvBR.position.set(-s * 0.08, s * 0.05, s * 0.38);
-    var mBR = new THREE.Mesh(wBGeo.clone(), wingMatBack.clone());
+    var mBR = new THREE.Mesh(wBGeo, wingMatBack.clone());
     mBR.rotation.x = -Math.PI / 2;
     pvBR.add(mBR);
     group.add(pvBR);
