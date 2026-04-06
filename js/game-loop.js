@@ -3808,7 +3808,7 @@
     } else {
     try { init(); } catch(e) {
       console.error('[Game Error]', e);
-      console.error('[Game] Initialization failed - game cannot start');
+      console.error('[Game] Initialization failed - proceeding with camp boot anyway (Engine 2.0)');
       window.gameModuleReady = true;
       window.gameInitError = e; // Store the error for display
 
@@ -3835,9 +3835,11 @@
       // Auto-dismiss after 4 seconds so it doesn't permanently block buttons
       setTimeout(function() { if (errorDiv) errorDiv.style.display = 'none'; }, 4000);
 
-      // Show main menu
+      // ── FORCE CAMP BOOT: DO NOT show main menu, boot to camp instead ──
+      // Main menu is permanently disabled. Camp can self-initialize independently.
+      console.log('[Game] Force booting to camp despite init error');
       var mainMenu = document.getElementById('main-menu');
-      if (mainMenu) mainMenu.style.display = 'flex';
+      if (mainMenu) mainMenu.style.display = 'none'; // Keep main menu hidden
 
       // Attach FALLBACK button handlers since setupMenus() never ran
       // These provide basic functionality even when init() failed
