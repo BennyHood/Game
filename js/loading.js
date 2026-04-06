@@ -92,7 +92,8 @@
         const loadingScreen = document.getElementById('loading-screen');
         if (!loadingScreen) return;
 
-        // Check for return-from-sandbox flag so we always boot straight to camp.
+        // Check for return-from-sandbox flag. When set, we skip the main-menu even
+        // if init had an error, because camp-world.js can warm up independently.
         var returnFromSandbox = false;
         try {
           returnFromSandbox = !!localStorage.getItem('wds_fromSandbox');
@@ -110,25 +111,37 @@
         setTimeout(function() {
           loadingScreen.style.display = 'none';
 
-          // ── Always try to boot to 3D camp first ──
-          // When returning from sandbox we skip the main-menu even if init failed,
-          // because camp-world.js can warm up independently of the main game engine.
-          if (typeof window.updateCampScreen === 'function') {
+          // ── Route to 3D camp when init succeeded OR when returning from sandbox ──
+          // On a clean boot with init errors we fall back to the main menu so the
+          // player can retry; but if they were already playing (returnFromSandbox) we
+          // try the camp regardless because camp-world.js runs independently.
+          if (typeof window.updateCampScreen === 'function' && (initOk || returnFromSandbox)) {
             console.log('[Loading] Routing to 3D camp screen' + (returnFromSandbox ? ' (return from sandbox)' : ''));
             var campScreen = document.getElementById('camp-screen');
             var mainMenuEl = document.getElementById('main-menu');
+            var campInitOk = false;
             if (mainMenuEl) mainMenuEl.style.display = 'none';
             if (campScreen) {
               campScreen.classList.remove('camp-subsection-active');
               campScreen.style.display = 'flex';
             }
-            try { window.updateCampScreen(); } catch (e) {
+            try {
+              window.updateCampScreen();
+              campInitOk = true;
+            } catch (e) {
               console.error('[Loading] updateCampScreen error:', e);
+              if (campScreen) {
+                campScreen.style.display = 'none';
+                campScreen.classList.remove('camp-subsection-active');
+              }
+              if (mainMenuEl) mainMenuEl.style.display = 'flex';
             }
-            return;
+            if (campInitOk) {
+              return;
+            }
           }
 
-          // If init failed and camp system is also unavailable, fall back to main menu
+          // If init failed (and this is not a sandbox return), fall back to main menu
           if (!initOk) {
             var mainMenu = document.getElementById('main-menu');
             if (mainMenu) mainMenu.style.display = 'flex';
