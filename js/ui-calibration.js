@@ -40,9 +40,9 @@
       defaultScale: 1,
     },
     {
-      selector: '#minimap-container',
-      label: '🗺️ Minimap',
-      defaultPos: { right: '8px', bottom: '10px', left: null, top: null },
+      selector: '#revolver-ui',
+      label: '🔫 Revolver Cylinder',
+      defaultPos: { left: '20px', bottom: '20px', right: null, top: null },
       defaultScale: 1,
     },
     {
@@ -111,6 +111,18 @@
       selector: '#day-night-clock',
       label: '🕐 Day/Night Clock',
       defaultPos: { left: null, top: '6px', right: null, bottom: null },
+      defaultScale: 1,
+    },
+    {
+      selector: '#skill-icons-panel',
+      label: '🎯 Skill Icons',
+      defaultPos: { right: '8px', top: '60px', left: null, bottom: null },
+      defaultScale: 1,
+    },
+    {
+      selector: '#settings-btn',
+      label: '⚙️ Settings Button',
+      defaultPos: { right: '8px', top: '8px', left: null, bottom: null },
       defaultScale: 1,
     },
   ];
@@ -317,6 +329,31 @@
       badge.textContent = def.label;
       el.appendChild(badge);
 
+      // ── Scale slider ──────────────────────────────────────
+      const scaleWrap = document.createElement('div');
+      scaleWrap.className = 'ui-cal-scale-wrap';
+      const scaleLabel = document.createElement('span');
+      scaleLabel.className = 'ui-cal-scale-label';
+      const currentScale = el._uiCalScale !== undefined ? el._uiCalScale : 1;
+      scaleLabel.textContent = '×' + currentScale.toFixed(2);
+      const scaleSlider = document.createElement('input');
+      scaleSlider.type = 'range';
+      scaleSlider.min = '0.4';
+      scaleSlider.max = '2.5';
+      scaleSlider.step = '0.05';
+      scaleSlider.value = String(currentScale);
+      scaleSlider.className = 'ui-cal-scale-slider';
+      scaleSlider.addEventListener('input', function() {
+        const s = parseFloat(this.value);
+        el.style.transform = 'scale(' + s + ')';
+        el.style.transformOrigin = 'top left';
+        el._uiCalScale = s;
+        scaleLabel.textContent = '×' + s.toFixed(2);
+      });
+      scaleWrap.appendChild(scaleLabel);
+      scaleWrap.appendChild(scaleSlider);
+      el.appendChild(scaleWrap);
+
       // ── Move handle (center drag zone) ──────────────────
       const mh = document.createElement('div');
       mh.className = 'ui-cal-move-handle';
@@ -359,7 +396,7 @@
       // Add edit-mode class for border highlight
       el.classList.add('ui-cal-active-element');
 
-      const handle = { el, def, badge, mh, rh, rhBR, rhBL, rhTR, rhT, rhB, rhL, rhR };
+      const handle = { el, def, badge, scaleWrap, mh, rh, rhBR, rhBL, rhTR, rhT, rhB, rhL, rhR };
       _handles.push(handle);
 
       _bindDrag(mh, el, handle);
@@ -382,6 +419,7 @@
     for (const h of _handles) {
       h.el.classList.remove('ui-cal-active-element');
       if (h.badge && h.badge.parentNode) h.badge.parentNode.removeChild(h.badge);
+      if (h.scaleWrap && h.scaleWrap.parentNode) h.scaleWrap.parentNode.removeChild(h.scaleWrap);
       if (h.mh && h.mh.parentNode) h.mh.parentNode.removeChild(h.mh);
       if (h.rh && h.rh.parentNode) h.rh.parentNode.removeChild(h.rh);
       for (const key of ['rhBR','rhBL','rhTR','rhT','rhB','rhL','rhR']) {
@@ -424,8 +462,15 @@
       startY    = pt.y;
       startLeft = rect.left;
       startTop  = rect.top;
-      // Clear any CSS centering transform so pixel position is absolute
-      el.style.transform = '';
+      // Clear any CSS centering transform so pixel position is absolute;
+      // preserve any user-set scale so dragging doesn't lose it.
+      const existingScale = el._uiCalScale !== undefined ? el._uiCalScale : 1;
+      if (existingScale !== 1) {
+        el.style.transform = 'scale(' + existingScale + ')';
+        el.style.transformOrigin = 'top left';
+      } else {
+        el.style.transform = '';
+      }
       el.style.cursor = 'grabbing';
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup',   onUp);
@@ -594,6 +639,8 @@
     const layout = {};
     for (const h of _handles) {
       const el = h.el;
+      // Read current transform scale (if set via calibration)
+      const scale = el._uiCalScale !== undefined ? el._uiCalScale : 1;
       layout[h.def.selector] = {
         left:   el.style.left   || null,
         top:    el.style.top    || null,
@@ -601,6 +648,7 @@
         bottom: el.style.bottom || null,
         width:  el.style.width  || null,
         height: el.style.height || null,
+        scale:  scale !== 1 ? scale : undefined,
       };
     }
     return layout;
@@ -695,6 +743,16 @@
     }
     if (entry.width)  el.style.width  = entry.width;
     if (entry.height) el.style.height = entry.height;
+    // Apply saved scale transform, or clear any prior scale when omitted/default
+    if (entry.scale !== undefined && entry.scale !== null && entry.scale !== 1) {
+      el.style.transform = 'scale(' + entry.scale + ')';
+      el.style.transformOrigin = 'top left';
+      el._uiCalScale = entry.scale;
+    } else {
+      el.style.transform = '';
+      el.style.transformOrigin = '';
+      el._uiCalScale = 1;
+    }
     // Ensure position is fixed so saved coords work regardless of which
     // anchoring side (left/top/right/bottom) was saved.
     if (entry.left || entry.top || entry.right || entry.bottom) {
