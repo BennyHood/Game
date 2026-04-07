@@ -723,8 +723,11 @@
       if (lastTime === null) {
         lastTime = time;
         gameTime = time / 1000; // Initialize gameTime for visual effects
-        // Render the initial frame before returning to avoid blank screen
-        try { renderer.render(scene, camera); } catch(e) { console.error('Render error (init frame):', e); }
+        // Render the initial frame before returning to avoid blank screen.
+        // Skip if CampWorld is active — it owns its own scene and camera.
+        if (!(window.CampWorld && window.CampWorld.isActive)) {
+          try { renderer.render(scene, camera); } catch(e) { console.error('Render error (init frame):', e); }
+        }
         return;
       }
 

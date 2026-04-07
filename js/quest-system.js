@@ -4920,7 +4920,8 @@
           },
         };
         window.CampWorld.enter(renderer, saveData, campCallbacks);
-        // camp-3d-mode class already forced unconditionally above
+        // Force camp-3d-mode so CSS hides all 2D building cards regardless of timing
+        document.getElementById('camp-screen').classList.add('camp-3d-mode');
       } else {
         // 2D camp mode: hide game container to prevent black canvas showing behind camp UI
         const gameContainer = document.getElementById('game-container');
