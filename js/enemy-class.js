@@ -118,6 +118,15 @@
     const DEFAULT_ENEMY_COLOR = _ENEMY_COLORS[0]; // green (same as Tank/index-0)
     // Expose for use by object-pool.js when resetting pooled enemy material colors
     window._ENEMY_COLORS = _ENEMY_COLORS;
+
+    // Helper: get the base blood color for an enemy instance (reads BloodV2 table if available)
+    function _getEnemyBloodColor(enemy) {
+      if (enemy && enemy.enemyType && window.BloodV2 && window.BloodV2.ENEMY_BLOOD) {
+        var _eb = window.BloodV2.ENEMY_BLOOD[enemy.enemyType];
+        if (_eb) return _eb.base;
+      }
+      return 0xcc1100;
+    }
     const ENEMY_INSTANCING_ENABLED = window.ENEMY_INSTANCING_ENABLED === true;
 
     // ── Shared enemy projectile resources — created once, reused by every enemy shot ──────────
@@ -3214,6 +3223,35 @@
             this._spinDeathDirection = hitDir ? { x: hitDir.vx || 0, y: 0, z: hitDir.vz || 0 } : null;
           }
         }
+
+        // Weapon-specific trauma effects
+        if (window.TraumaSystem) {
+          var _eColor = _getEnemyBloodColor(this);
+          if (damageType === 'shotgun' || damageType === 'doubleBarrel' || damageType === 'pumpShotgun' || damageType === 'autoShotgun') {
+            if (hitPoint) {
+              var _blastDir = { x: 0, z: 0 };
+              if (this.mesh) {
+                var _px = hitPoint.x - this.mesh.position.x;
+                var _pz = hitPoint.z - this.mesh.position.z;
+                var EPSILON_DISTANCE = 0.001; // avoid division-by-zero when hit is exactly at enemy center
+                var _pl = Math.sqrt(_px*_px + _pz*_pz) + EPSILON_DISTANCE;
+                _blastDir.x = _px/_pl; _blastDir.z = _pz/_pl;
+              }
+              window.TraumaSystem.shotgunBlast(hitPoint, _blastDir, _eColor);
+            }
+          } else if (damageType === 'sword' || damageType === 'samuraiSword' || damageType === 'teslaSaber') {
+            if (hitPoint) {
+              var _sax = this._slashDirection ? this._slashDirection.x : 1;
+              var _saz = this._slashDirection ? this._slashDirection.z : 0;
+              window.TraumaSystem.swordCleave(hitPoint, _sax, _saz, _eColor);
+            }
+          } else if (damageType === 'meteor' || damageType === 'rocket' || damageType === 'grenade') {
+            if (this.mesh) {
+              var _gpos = this.mesh.position;
+              window.TraumaSystem.explosiveGib({ x: _gpos.x, y: _gpos.y, z: _gpos.z }, _eColor);
+            }
+          }
+        }
         // ─────────────────────────────────────────────────────────────────────────────
 
         if (this.hp <= 0) {
@@ -3467,6 +3505,24 @@
         } else {
           // Standard death — Geyser Rollover: rolls onto back with 3-second heartbeat bleed-out
           this.dieGeyserRollover(enemyColor);
+        }
+
+        // TraumaSystem death gore
+        // Shotgun-family deaths already emit full TraumaSystem gore inside dieByShotgun(),
+        // so skip the generic shotgunBlast here to avoid double-spawning effects.
+        var _shotgunDeathHandledByMethod =
+          damageType === 'shotgun' ||
+          damageType === 'doubleBarrel' ||
+          damageType === 'pumpShotgun' ||
+          damageType === 'autoShotgun';
+        if (window.TraumaSystem && !_shotgunDeathHandledByMethod) {
+          var _deathColor = _getEnemyBloodColor(this);
+          var _deathPos = this.mesh ? this.mesh.position : null;
+          if (_deathPos) {
+            if (damageType === 'meteor' || damageType === 'rocket' || damageType === 'grenade') {
+              window.TraumaSystem.explosiveGib({ x: _deathPos.x, y: _deathPos.y, z: _deathPos.z }, _deathColor);
+            }
+          }
         }
         
         // Screen flash on kill (dopamine boost) - stronger flash for mini-boss

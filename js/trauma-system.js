@@ -21,10 +21,15 @@
   const HEARTBEAT_INTERVAL = 400;        // Blood pump interval (ms)
   const CORPSE_FADE_DURATION_S = 1.0;    // Seconds for blood-pool fade-out after pumping ends
   const GRAVITY = -0.025;                // Physics gravity for chunks
+  // Named constants for arterial pump helper
+  const ARTERIAL_PUMP_WEAPON_TYPE = 'pistol';  // Weapon profile to use for fake arterial hit via BloodV2
+  const ARTERIAL_PUMP_Y_OFFSET    = 0.1;       // Vertical offset above wound origin for pump spawn point
+  const ARTERIAL_PUMP_ID_PREFIX   = 'ts_pump_'; // Namespace prefix — prevents collision with real enemy IDs
 
   // ─── Internal State ─────────────────────────────────────────────────────────
   let _scene = null;
   let _initialized = false;
+  let _arterialPumpIdCounter = 0;  // monotonic counter for arterial pump fake-enemy IDs
 
   // Wound decal system (planes attached to enemy meshes)
   const _woundDecals = []; // { mesh, parentEnemy, life, position }
@@ -141,7 +146,8 @@
   function _initFleshChunks() {
     const geo = new THREE.BoxGeometry(0.08, 0.08, 0.08);
     const mat = new THREE.MeshStandardMaterial({
-      color: 0x8B0000,
+      color: 0xffffff,   // white base so per-instance color drives actual tint
+      vertexColors: true, // required for InstancedMesh instanceColor tinting
       roughness: 0.9,
       metalness: 0.0
     });
@@ -166,14 +172,20 @@
     _fleshRVZ = new Float32Array(MAX_FLESH_CHUNKS);
     _fleshLife = new Float32Array(MAX_FLESH_CHUNKS);
 
-    // Hide all instances initially
+    // Allocate instanceColor buffer and initialize every slot to dark-red default
+    _fleshChunkIM.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_FLESH_CHUNKS * 3), 3);
+    _fleshChunkIM.instanceColor.setUsage(THREE.DynamicDrawUsage);
+
+    // Hide all instances initially and set default color (dark red: 0x8B0000)
     for (let i = 0; i < MAX_FLESH_CHUNKS; i++) {
       _fleshPY[i] = -9999;
       _fleshLife[i] = 0;
       _tmpMatrix.makeTranslation(0, -9999, 0);
       _fleshChunkIM.setMatrixAt(i, _tmpMatrix);
+      _fleshChunkIM.instanceColor.setXYZ(i, 0x8B / 255, 0, 0);
     }
     _fleshChunkIM.instanceMatrix.needsUpdate = true;
+    _fleshChunkIM.instanceColor.needsUpdate = true;
   }
 
   function _initGuts() {
@@ -643,6 +655,170 @@
     }
   }
 
+  function spawnSmear(startPos, endPos, color, count) {
+    if (!startPos || !endPos) return;
+    var smearChunkCount = count || 10;
+    var dx = endPos.x - startPos.x;
+    var dz = endPos.z - startPos.z;
+    for (var i = 0; i < smearChunkCount; i++) {
+      var t = i / Math.max(smearChunkCount - 1, 1);
+      var idx = _fleshHead % MAX_FLESH_CHUNKS;
+      _fleshHead++;
+      _fleshPX[idx] = startPos.x + dx * t + (Math.random() - 0.5) * 0.08;
+      _fleshPY[idx] = 0.07;
+      _fleshPZ[idx] = startPos.z + dz * t + (Math.random() - 0.5) * 0.08;
+      _fleshVX[idx] = 0;
+      _fleshVY[idx] = 0;
+      _fleshVZ[idx] = 0;
+      _fleshRX[idx] = 0;
+      _fleshRY[idx] = 0;
+      _fleshRZ[idx] = Math.atan2(dz, dx);
+      _fleshRVX[idx] = 0;
+      _fleshRVY[idx] = 0;
+      _fleshRVZ[idx] = 0;
+      _fleshLife[idx] = 360;
+      if (_fleshChunkIM.instanceColor) {
+        _fleshChunkIM.instanceColor.setXYZ(idx,
+          ((color >> 16) & 0xff) / 255,
+          ((color >>  8) & 0xff) / 255,
+          ( color        & 0xff) / 255);
+      }
+    }
+    if (_fleshChunkIM.instanceColor) _fleshChunkIM.instanceColor.needsUpdate = true;
+  }
+
+  function startArterialPump(position, dirX, dirY, dirZ, color, duration) {
+    if (!position) return;
+    var bloodColor = color || 0xcc1100;
+    var streamLife = (typeof duration === 'number' && duration > 0) ? duration : 6.0;
+    if (window.BloodV2 && window.BloodV2.hit) {
+      var fakeEnemy = {
+        alive: true,
+        enemyType: 'default',
+        id: ARTERIAL_PUMP_ID_PREFIX + (++_arterialPumpIdCounter),
+        hp: 1, maxHp: 1,
+        mesh: { position: { x: position.x, y: position.y, z: position.z }, scale: { y: 1 } }
+      };
+      // Pass caller's color via a temporary ENEMY_BLOOD override so the stream uses it
+      var _prevColor = null;
+      if (window.BloodV2.ENEMY_BLOOD) {
+        _prevColor = window.BloodV2.ENEMY_BLOOD['default'];
+        window.BloodV2.ENEMY_BLOOD['default'] = { base: bloodColor, dark: bloodColor, organ: bloodColor, mist: bloodColor };
+      }
+      window.BloodV2.hit(fakeEnemy, ARTERIAL_PUMP_WEAPON_TYPE,
+        { x: position.x, y: position.y + ARTERIAL_PUMP_Y_OFFSET, z: position.z },
+        { x: dirX, y: dirY, z: dirZ });
+      if (_prevColor !== null) window.BloodV2.ENEMY_BLOOD['default'] = _prevColor;
+    }
+    // Spawn a few guts at the wound site tinted with the caller's color
+    spawnGuts(position, 3, { x: dirX * 0.15, y: Math.abs(dirY) * 0.2 + 0.15, z: dirZ * 0.15 });
+  }
+
+  function shotgunBlast(position, blastDir, enemyColor) {
+    if (!position) return;
+    var col = enemyColor || 0xcc1100;
+    var gutCount = 8 + Math.floor(Math.random() * 6);
+    var bx = blastDir ? blastDir.x : 0;
+    var bz = blastDir ? blastDir.z : 0;
+    var vel = { x: bx * 0.2, y: 0.15, z: bz * 0.2 };
+    spawnGuts(position, gutCount, vel);
+    spawnBones(position, 4, vel);
+    spawnBrains(position, 2, { x: bx * 0.1, y: 0.2, z: bz * 0.1 });
+    if (blastDir) {
+      var endPos = {
+        x: position.x + bx * 1.5,
+        y: position.y,
+        z: position.z + bz * 1.5
+      };
+      spawnSmear(position, endPos, col, 12);
+    }
+    if (window.BloodV2 && window.BloodV2.rawBurst) {
+      window.BloodV2.rawBurst(position.x, position.y, position.z, 40, {
+        spdMin: 3.0, spdMax: 12.0, rMin: 0.012, rMax: 0.030,
+        life: 3.0, visc: 0.55, color: col
+      });
+    }
+  }
+
+  function swordCleave(position, sliceAxisX, sliceAxisZ, enemyColor) {
+    if (!position) return;
+    var col = enemyColor || 0xcc1100;
+    // Compute perpendicular to the slice axis, handling the (0,0) / undefined edge case
+    var axisX = (typeof sliceAxisX === 'number') ? sliceAxisX : 0;
+    var axisZ = (typeof sliceAxisZ === 'number') ? sliceAxisZ : 0;
+    if (axisX === 0 && axisZ === 0) { axisX = 1; axisZ = 0; }
+    var perpX = -axisZ;
+    var perpZ = axisX;
+    var perpLen = Math.sqrt(perpX * perpX + perpZ * perpZ);
+    if (perpLen > 0) { perpX /= perpLen; perpZ /= perpLen; } else { perpX = 0; perpZ = 1; }
+    for (var half = 0; half < 2; half++) {
+      var sign = (half === 0) ? 1 : -1;
+      for (var j = 0; j < 3; j++) {
+        var idx = _fleshHead % MAX_FLESH_CHUNKS;
+        _fleshHead++;
+        _fleshPX[idx] = position.x + perpX * sign * (0.1 + Math.random() * 0.1);
+        _fleshPY[idx] = position.y + 0.2 + Math.random() * 0.3;
+        _fleshPZ[idx] = position.z + perpZ * sign * (0.1 + Math.random() * 0.1);
+        _fleshVX[idx] = perpX * sign * (0.12 + Math.random() * 0.18);
+        _fleshVY[idx] = 0.05 + Math.random() * 0.12;
+        _fleshVZ[idx] = perpZ * sign * (0.12 + Math.random() * 0.18);
+        _fleshRX[idx] = Math.random() * Math.PI * 2;
+        _fleshRY[idx] = Math.random() * Math.PI * 2;
+        _fleshRZ[idx] = Math.random() * Math.PI * 2;
+        _fleshRVX[idx] = (Math.random() - 0.5) * 0.35;
+        _fleshRVY[idx] = (Math.random() - 0.5) * 0.35;
+        _fleshRVZ[idx] = (Math.random() - 0.5) * 0.35;
+        _fleshLife[idx] = 300;
+      }
+    }
+    if (window.BloodV2 && window.BloodV2.smearBlood) {
+      var halfLen = 0.6;
+      window.BloodV2.smearBlood(
+        position.x - perpX * halfLen, position.y + 0.1, position.z - perpZ * halfLen,
+        position.x + perpX * halfLen, position.y + 0.1, position.z + perpZ * halfLen,
+        16, col);
+    } else if (window.BloodV2 && window.BloodV2.rawBurst) {
+      window.BloodV2.rawBurst(position.x, position.y + 0.1, position.z, 30, {
+        spdMin: 2.0, spdMax: 8.0, rMin: 0.008, rMax: 0.022,
+        life: 2.5, visc: 0.60, color: col
+      });
+    }
+  }
+
+  function explosiveGib(position, enemyColor) {
+    if (!position) return;
+    var col = enemyColor || 0xcc1100;
+    spawnGuts(position, 12, null);
+    spawnBones(position, 8, null);
+    spawnBrains(position, 6, null);
+    for (var i = 0; i < 20; i++) {
+      var idx = _fleshHead % MAX_FLESH_CHUNKS;
+      _fleshHead++;
+      var angle = Math.random() * Math.PI * 2;
+      var elev = 0.3 + Math.random() * 0.6;
+      var speed = 0.25 + Math.random() * 0.35;
+      _fleshPX[idx] = position.x;
+      _fleshPY[idx] = position.y + 0.2;
+      _fleshPZ[idx] = position.z;
+      _fleshVX[idx] = Math.cos(angle) * Math.cos(elev) * speed;
+      _fleshVY[idx] = Math.abs(Math.sin(elev)) * speed + 0.1;
+      _fleshVZ[idx] = Math.sin(angle) * Math.cos(elev) * speed;
+      _fleshRX[idx] = Math.random() * Math.PI * 2;
+      _fleshRY[idx] = Math.random() * Math.PI * 2;
+      _fleshRZ[idx] = Math.random() * Math.PI * 2;
+      _fleshRVX[idx] = (Math.random() - 0.5) * 0.5;
+      _fleshRVY[idx] = (Math.random() - 0.5) * 0.5;
+      _fleshRVZ[idx] = (Math.random() - 0.5) * 0.5;
+      _fleshLife[idx] = 360 + Math.floor(Math.random() * 120);
+    }
+    if (window.BloodV2 && window.BloodV2.rawBurst) {
+      window.BloodV2.rawBurst(position.x, position.y, position.z, 80, {
+        spdMin: 4.0, spdMax: 22.0, rMin: 0.014, rMax: 0.042,
+        life: 3.5, visc: 0.52, color: col
+      });
+    }
+  }
+
   // ─── Stuck Arrow/Spear System ────────────────────────────────────────────────
   function stickArrowInEnemy(enemy, hitPoint, direction, weaponType = 'bow') {
     if (!enemy || !enemy.mesh || !hitPoint) return;
@@ -997,7 +1173,12 @@
     spawnGuts,
     spawnBrains,
     spawnBones,
-    stickArrowInEnemy
+    stickArrowInEnemy,
+    spawnSmear,
+    startArterialPump,
+    shotgunBlast,
+    swordCleave,
+    explosiveGib
   };
 
   console.log('[TraumaSystem] Module loaded - window.TraumaSystem ready');
