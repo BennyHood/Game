@@ -141,7 +141,8 @@
         prismReliquary: { level: 0, maxLevel: 1, unlocked: false },
         neuralMatrix:   { level: 0, maxLevel: 1, unlocked: false },
         astralGateway:  { level: 0, maxLevel: 1, unlocked: false },
-        droppletShop:   { level: 0, maxLevel: 1, unlocked: false }  // The Dropplet Shop
+        droppletShop:   { level: 0, maxLevel: 1, unlocked: false },  // The Dropplet Shop
+        slotMachine:    { level: 0, maxLevel: 1, unlocked: false }   // Slot Machine
       },
       // Neural Matrix unlock state (which nodes the player has activated)
       neuralMatrix: {},
@@ -382,7 +383,8 @@
         fur: 0, leather: 0, feather: 0, chitin: 0, venom: 0,
         berry: 0, flower: 0, vegetable: 0,
         voidEssence: 0,
-        waterdropEnergy: 0   // Waterdrop Energy — used in Artifact Resonance Grid merges
+        waterdropEnergy: 0,  // Waterdrop Energy — used in Artifact Resonance Grid merges
+        slotCoins: 0          // Slot Coins — earned by completing quests, spent at Slot Machine
       },
       harvestingTools: {
         axe: false, sledgehammer: false, pickaxe: false, magicTool: false,
@@ -454,6 +456,7 @@
           saveData.consumables = saveData.consumables || [];
           saveData.hasSeenCrimsonCoreDialogue = saveData.hasSeenCrimsonCoreDialogue || false;
           saveData.resources = { ...defaultSaveData.resources, ...(saveData.resources || {}) };
+          saveData.resources.slotCoins = saveData.resources.slotCoins || 0;
           saveData.artifacts = saveData.artifacts || [];
           saveData.equippedArtifacts = saveData.equippedArtifacts || [null, null, null];
           saveData.campBuildings = { ...defaultSaveData.campBuildings, ...(saveData.campBuildings || {}) };

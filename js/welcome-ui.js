@@ -431,9 +431,14 @@
   }
 
   // ── Auto-show on first visit ──────────────────────────────────────────────
+  function _isOnCampPage() {
+    var p = window.location.pathname;
+    return p === '/' || p.endsWith('/') || /index\.html$/i.test(p);
+  }
+
   function _autoShow() {
-    // Only auto-show in sandbox.html (not camp/index)
-    if (!window.location.pathname.match(/sandbox\.html/i)) return;
+    // Show only on index.html (the Camp); skip on all other pages (sandbox, etc.)
+    if (!_isOnCampPage()) return;
     // Only show on first visit
     if (localStorage.getItem(STORAGE_KEY)) return;
     // Give the game a moment to initialize

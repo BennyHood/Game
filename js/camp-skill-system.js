@@ -1402,6 +1402,18 @@
         updateCampScreen();
         playSound('collect');
         showStatusMessage(`${building.name} upgraded to level ${buildingData.level}!`, 2000);
+
+        // Grant building XP to account
+        var _bXP = 50 + (buildingData.level * 25);
+        if (typeof addAccountXP === 'function') {
+          addAccountXP(_bXP);
+        } else if (typeof window.addAccountXP === 'function') {
+          window.addAccountXP(_bXP);
+        } else if (typeof saveData !== 'undefined') {
+          saveData.accountXP = (saveData.accountXP || 0) + _bXP;
+          if (typeof saveSaveData === 'function') saveSaveData();
+        }
+        if (typeof showStatChange === 'function') showStatChange('+' + _bXP + ' Account XP', 'epic');
         
         // Quest progression
         if (buildingId === 'skillTree' && buildingData.level === 2 && saveData.storyQuests.currentQuest === 'upgradeSkillTree') {
@@ -3047,6 +3059,16 @@
           if (saveData.campBuildings[buildingId].level === 0) saveData.campBuildings[buildingId].level = 1;
         }
         showStatChange('🏛️ ' + buildingName + ' Built!');
+        // Grant building XP to account
+        var _bXP = 50 + 25; // level 1 baseline
+        if (typeof addAccountXP === 'function') {
+          addAccountXP(_bXP);
+        } else if (typeof window.addAccountXP === 'function') {
+          window.addAccountXP(_bXP);
+        } else if (typeof saveData !== 'undefined') {
+          saveData.accountXP = (saveData.accountXP || 0) + _bXP;
+        }
+        if (typeof showStatChange === 'function') showStatChange('+' + _bXP + ' Account XP', 'epic');
         // Sleek construction complete notification
         (function _showBuildComplete() {
           const n = document.createElement('div');
@@ -3338,6 +3360,13 @@
       }
       // Award account XP for completing a quest (50 XP per quest)
       addAccountXP(50);
+      // Grant 1 slot coin per quest completed
+      if (typeof saveData !== 'undefined') {
+        if (!saveData.resources) saveData.resources = {};
+        saveData.resources.slotCoins = (saveData.resources.slotCoins || 0) + 1;
+        if (typeof saveSaveData === 'function') saveSaveData();
+      }
+      if (typeof showStatChange === 'function') showStatChange('+1 🎰 Slot Coin', 'rare');
       chatSystemMessage('🎁 Quest "' + quest.name + '" claimed! Rewards received.');
 
       // Dopamine: spawn confetti + Benny contextual hint for next step
