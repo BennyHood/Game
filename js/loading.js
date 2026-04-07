@@ -149,6 +149,21 @@
             console.error('[Loading] updateCampScreen error:', e);
             console.log('[Loading] Continuing with camp display despite error - CampWorld may self-initialize');
           }
+
+          // ── Safety net ────────────────────────────────────────────────────
+          // Only force 3D camp UI state when the 3D camp is actually available.
+          // Otherwise, preserve the intended 2D fallback UI instead of revealing
+          // an empty/black canvas.
+          var canUse3DCamp = !!(window.CampWorld && window.gameRenderer);
+          if (canUse3DCamp) {
+            var _gcEl = document.getElementById('game-container');
+            if (_gcEl) _gcEl.style.display = 'block';
+            var _csEl = document.getElementById('camp-screen');
+            if (_csEl) _csEl.classList.add('camp-3d-mode');
+          } else {
+            console.warn('[Loading] 3D camp not ready; preserving fallback camp UI');
+          }
+
           // Two nested rAFs let CampWorld.enter() issue its first render call and give
           // the GPU a chance to draw before we reveal the scene.
           var fadeDone = false;

@@ -723,8 +723,11 @@
       if (lastTime === null) {
         lastTime = time;
         gameTime = time / 1000; // Initialize gameTime for visual effects
-        // Render the initial frame before returning to avoid blank screen
-        try { renderer.render(scene, camera); } catch(e) { console.error('Render error (init frame):', e); }
+        // Render the initial frame before returning to avoid blank screen.
+        // Skip if CampWorld is active — it owns its own scene and camera.
+        if (!(window.CampWorld && window.CampWorld.isActive)) {
+          try { renderer.render(scene, camera); } catch(e) { console.error('Render error (init frame):', e); }
+        }
         return;
       }
 
@@ -3844,8 +3847,24 @@
       console.log('[Game] Force booting to camp despite init error');
       var mainMenu = document.getElementById('main-menu');
       if (mainMenu) mainMenu.style.display = 'none'; // Keep main menu hidden
-      // _attachFallbackMenuHandlers removed: #main-menu is CSS-hidden so its buttons
-      // are unreachable; recovery is handled by the persistent error overlay above.
+
+      // CRITICAL: start the animate() loop even when init() failed partway through.
+      // If init() threw before reaching the requestAnimationFrame(animate) call at
+      // line ~579 of game-screens.js, the loop was never started. Without the loop,
+      // CampWorld.render() is never called and the 3D camp stays invisible.
+      // Only start the loop if a meaningful render/update path is ready to avoid
+      // creating a self-sustaining rAF loop when renderer/scene/camera don't exist.
+      var hasCoreRenderPath =
+        (typeof renderer !== 'undefined' && !!renderer) &&
+        (typeof scene !== 'undefined' && !!scene) &&
+        (typeof camera !== 'undefined' && !!camera);
+      var hasCampFallbackPath = !!(window.CampWorld && window.gameRenderer);
+      if (!animationFrameId && (hasCoreRenderPath || hasCampFallbackPath)) {
+        console.log('[Game] Starting animate() loop from catch block (recovery path is ready)');
+        animationFrameId = requestAnimationFrame(animate);
+      } else if (!animationFrameId) {
+        console.warn('[Game] Skipping animate() startup from catch block; renderer/camp fallback not ready');
+      }
     }
     } // end THREE check
 
