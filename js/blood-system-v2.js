@@ -823,8 +823,9 @@ function _isHighEntityMode() {
 var cnt = 0;
 if (window.enemies && Array.isArray(window.enemies)) {
 cnt = window.enemies.length;
-} else if (window._activeSlimes && window._activeCrawlers) {
-cnt = (window._activeSlimes.length || 0) + (window._activeCrawlers.length || 0);
+} else {
+if (Array.isArray(window._activeSlimes))   cnt += window._activeSlimes.length;
+if (Array.isArray(window._activeCrawlers)) cnt += window._activeCrawlers.length;
 }
 return cnt >= 15;
 }
@@ -849,8 +850,8 @@ var col  = ENEMY_BLOOD[eType] || ENEMY_BLOOD.default;
 // ── DYNAMIC GORE LOD ──────────────────────────────────────────────────
 // HIGH-ENTITY MODE (>= 15 enemies): skip all physics, drop a flat decal only
 if (_isHighEntityMode()) {
-var _lodX = enemy.mesh ? enemy.mesh.position.x : 0;
-var _lodZ = enemy.mesh ? enemy.mesh.position.z : 0;
+var _lodX = hitPoint ? hitPoint.x : (enemy.mesh ? enemy.mesh.position.x : 0);
+var _lodZ = hitPoint ? hitPoint.z : (enemy.mesh ? enemy.mesh.position.z : 0);
 _spawnLodDecal(_lodX, _lodZ, col);
 return;
 }

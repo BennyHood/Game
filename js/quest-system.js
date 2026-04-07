@@ -4368,23 +4368,43 @@
         document.head.appendChild(sty);
       }
 
+      // Shared AudioContext for cha-ching — reused across claims to avoid browser AudioContext limits
+      let _chachingAudioCtx = null;
+      function _getChaChingAudioCtx() {
+        const Ctor = window.AudioContext || window.webkitAudioContext;
+        if (!Ctor) return null;
+        if (!_chachingAudioCtx) _chachingAudioCtx = new Ctor();
+        if (_chachingAudioCtx.state === 'suspended' && _chachingAudioCtx.resume) {
+          _chachingAudioCtx.resume().catch(function() {});
+        }
+        return _chachingAudioCtx;
+      }
+
       // Helper: play cha-ching sound via Web Audio API
       function _playChaChingSound() {
         try {
-          const ctx = new (window.AudioContext || window.webkitAudioContext)();
+          const ctx = _getChaChingAudioCtx();
+          if (!ctx) return;
           const gain = ctx.createGain();
-          gain.gain.setValueAtTime(0.5, ctx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
+          const startAt = ctx.currentTime;
+          gain.gain.setValueAtTime(0.5, startAt);
+          gain.gain.exponentialRampToValueAtTime(0.001, startAt + 0.8);
           gain.connect(ctx.destination);
+          let lastStop = startAt;
           // Two tones for "cha-ching"
           [880, 1320].forEach((freq, i) => {
             const osc = ctx.createOscillator();
+            const noteStart = startAt + i * 0.12;
+            const noteStop  = noteStart + 0.35;
             osc.type = 'triangle';
-            osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.12);
+            osc.frequency.setValueAtTime(freq, noteStart);
             osc.connect(gain);
-            osc.start(ctx.currentTime + i * 0.12);
-            osc.stop(ctx.currentTime + i * 0.12 + 0.35);
+            osc.start(noteStart);
+            osc.stop(noteStop);
+            if (noteStop > lastStop) lastStop = noteStop;
           });
+          setTimeout(() => { try { gain.disconnect(); } catch(e) {} },
+            Math.ceil((lastStop - startAt) * 1000) + 100);
         } catch(e) { /* audio not available */ }
       }
 
@@ -4421,16 +4441,20 @@
         const todayDayNum = canClaim && peeked ? ((peeked.day - 1) % 7) + 1 : 0;
         // How many days in the current cycle have been claimed
         const cycleStreak = streak % 7;
+        // claimedDayCount: days claimed in the current 7-day cycle (handles full-week case)
+        const claimedDayCount = (cycleStreak === 0 && streak > 0) ? 7 : cycleStreak;
 
         const _rarityColors = ['#aaaaaa','#55cc55','#44aaff','#aa44ff','#ffaa00','#ff7700','#FFD700'];
 
         let html = '<div style="font-size:1.7em;letter-spacing:3px;color:#FFD700;text-shadow:2px 2px 0 #000;margin-bottom:6px;">🎁 WEEKLY REWARD TRACK</div>';
-        html += '<div style="font-family:Arial,sans-serif;font-size:12px;color:#ccc;margin-bottom:16px;">Streak: <b style="color:#FFD700;">' + streak + '</b> days &nbsp;|&nbsp; Week cycle day <b style="color:#adf;">' + (cycleStreak === 0 && streak > 0 ? 7 : cycleStreak || (canClaim ? todayDayNum : 0)) + '/7</b></div>';
+        html += '<div style="font-family:Arial,sans-serif;font-size:12px;color:#ccc;margin-bottom:16px;">Streak: <b style="color:#FFD700;">' + streak + '</b> days &nbsp;|&nbsp; Week cycle day <b style="color:#adf;">' + claimedDayCount + '/7</b></div>';
         html += '<div id="dt-track-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:18px;">';
 
         rewards.forEach(function(r, i) {
           const dayNum  = i + 1;
-          const isClaimed = streak > 0 && (dayNum < todayDayNum || (!canClaim && dayNum <= cycleStreak) || (dayNum <= cycleStreak && !canClaim));
+          // A day is claimed if its number falls within claimedDayCount when not claiming today,
+          // or strictly below todayDayNum when claiming today.
+          const isClaimed = canClaim ? dayNum < todayDayNum : dayNum <= claimedDayCount;
           const isToday  = canClaim && dayNum === todayDayNum;
           const isEpic   = r.isEpic || dayNum === 7;
           const rColor   = _rarityColors[i] || '#FFD700';
@@ -4473,12 +4497,12 @@
 
             const result = window.GameDailies.checkDailyLogin(saveData);
             if (!result.alreadyClaimed) {
-              saveData.gold = (saveData.gold || 0) + (result.gold || 0);
-              if (result.gems) saveData.gems = (saveData.gems || 0) + result.gems;
+              // checkDailyLogin already applies gold, gems, and all other rewards to saveData.
+              // Only build the parts list here for the stat-change notification.
               const _parts = [];
-              if (result.gold)           _parts.push('+' + result.gold + ' Gold');
-              if (result.gems)           _parts.push('+' + result.gems + ' Gems');
-              if (result.skillPoints)    _parts.push('+' + result.skillPoints + ' Skill Pts');
+              if (result.gold)            _parts.push('+' + result.gold + ' Gold');
+              if (result.gems)            _parts.push('+' + result.gems + ' Gems');
+              if (result.skillPoints)     _parts.push('+' + result.skillPoints + ' Skill Pts');
               if (result.attributePoints) _parts.push('+' + result.attributePoints + ' Attr Pts');
               saveSaveData();
               showStatChange('🎁 Day ' + result.day + ': ' + (_parts.join(' · ') || 'Claimed!'));
@@ -4509,7 +4533,10 @@
             panel.style.boxShadow   = '0 0 60px ' + _rarityColors[todayDayNum - 1] + '88, 0 0 30px ' + _rarityColors[todayDayNum - 1] + '44';
 
             if (typeof window.rarityEscalationReveal === 'function') {
-              window.rarityEscalationReveal(panel, result.isEpic ? 'mythic' : 'epic', {});
+              const _dailyRarityByDay = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'mythic'];
+              const _claimedDayIdx = Math.max(1, Math.min(_dailyRarityByDay.length, (result && result.day) || todayDayNum));
+              const _claimRarity = _dailyRarityByDay[_claimedDayIdx - 1];
+              window.rarityEscalationReveal(panel, _claimRarity, {});
             }
           };
         }

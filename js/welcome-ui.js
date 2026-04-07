@@ -97,22 +97,42 @@
     return { prize: WELCOME_SPIN_PRIZES[0], idx: 0 };
   }
 
+  // Shared AudioContext — reused across all spin wins to avoid browser AudioContext limits
+  var _spinWinAudioCtx = null;
+  function _getSpinWinAudioCtx() {
+    var Ctor = window.AudioContext || window.webkitAudioContext;
+    if (!Ctor) return null;
+    if (!_spinWinAudioCtx) _spinWinAudioCtx = new Ctor();
+    if (_spinWinAudioCtx.state === 'suspended' && _spinWinAudioCtx.resume) {
+      _spinWinAudioCtx.resume().catch(function() {});
+    }
+    return _spinWinAudioCtx;
+  }
+
   // ── Helper: play a simple win sound ─────────────────────────────────────
   function _playSpinWin() {
     try {
-      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      var ctx = _getSpinWinAudioCtx();
+      if (!ctx) return;
       var g = ctx.createGain();
-      g.gain.setValueAtTime(0.4, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.0);
+      var startAt = ctx.currentTime;
+      var lastStop = startAt;
+      g.gain.setValueAtTime(0.4, startAt);
+      g.gain.exponentialRampToValueAtTime(0.001, startAt + 1.0);
       g.connect(ctx.destination);
       [523, 659, 784, 1047].forEach(function(f, i) {
         var o = ctx.createOscillator();
+        var noteStart = startAt + i * 0.12;
+        var noteStop  = noteStart + 0.3;
         o.type = 'sine';
         o.frequency.value = f;
         o.connect(g);
-        o.start(ctx.currentTime + i * 0.12);
-        o.stop(ctx.currentTime + i * 0.12 + 0.3);
+        o.start(noteStart);
+        o.stop(noteStop);
+        if (noteStop > lastStop) lastStop = noteStop;
       });
+      setTimeout(function() { try { g.disconnect(); } catch(e) {} },
+        Math.ceil((lastStop - startAt) * 1000) + 100);
     } catch(e) {}
   }
 
@@ -180,21 +200,8 @@
         + '</div>'
         + (done ? '<span style="color:#2ecc71;font-size:1.1em">✔</span>' : '<span style="color:#444;font-size:0.8em;font-family:Arial,sans-serif">+1 spin</span>');
 
-      if (!done) {
-        item.style.cursor = 'pointer';
-        item.title = 'Click to mark done (demo)';
-        item.onclick = function() {
-          completedIds[q.id] = true;
-          try { localStorage.setItem('wds_npqCompleted', JSON.stringify(completedIds)); } catch(e) {}
-          // Grant a welcome spin
-          var newSpins = parseInt(localStorage.getItem(SPINS_KEY) || '0', 10) + 1;
-          localStorage.setItem(SPINS_KEY, newSpins);
-          spinsLabel.textContent = '🎰 Welcome Spins available: ' + newSpins;
-          item.className = 'wu-quest-item done';
-          item.style.cursor = 'default';
-          if (typeof onQuestComplete === 'function') onQuestComplete(newSpins);
-        };
-      }
+      // Quests are completed by real in-game events via window.WelcomeUI.completeQuest(id).
+      // No click-to-complete path to prevent exploit farming of spins.
       div.appendChild(item);
     });
 
@@ -440,10 +447,39 @@
   }
 
   // Public API
+  // ── completeQuest(id) — called by real game events to mark a quest done and grant a spin
+  function completeQuest(id) {
+    var completedIds = {};
+    try {
+      var raw = localStorage.getItem('wds_npqCompleted');
+      if (raw) completedIds = JSON.parse(raw);
+    } catch(e) {}
+    if (completedIds[id]) return; // already completed
+    completedIds[id] = true;
+    try { localStorage.setItem('wds_npqCompleted', JSON.stringify(completedIds)); } catch(e) {}
+    // Grant one Welcome Spin
+    var newSpins = 0;
+    try { newSpins = parseInt(localStorage.getItem(SPINS_KEY) || '0', 10) + 1; } catch(e) { newSpins = 1; }
+    try { localStorage.setItem(SPINS_KEY, newSpins); } catch(e) {}
+    // If welcome overlay is open, refresh its quest + spin panels
+    var overlay = document.getElementById('welcome-overlay');
+    if (overlay) {
+      var spinsEl = overlay.querySelector('[data-wu-spins]');
+      if (spinsEl) spinsEl.textContent = '🎰 Welcome Spins available: ' + newSpins;
+      var questEl = overlay.querySelector('[data-wu-quest="' + id + '"]');
+      if (questEl) {
+        questEl.classList.add('done');
+        var checkEl = questEl.querySelector('.wu-quest-check');
+        if (checkEl) checkEl.textContent = '✔';
+      }
+    }
+  }
+
   window.WelcomeUI = {
-    show:         show,
+    show:          show,
+    completeQuest: completeQuest,
     NEW_PLAYER_QUESTS: NEW_PLAYER_QUESTS,
-    SPIN_PRIZES:  WELCOME_SPIN_PRIZES
+    SPIN_PRIZES:   WELCOME_SPIN_PRIZES
   };
 
 })();

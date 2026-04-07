@@ -468,15 +468,25 @@
 
     function _handleLink(provider) {
       var key = 'wds_linked_' + provider;
-      if (localStorage.getItem(key)) return; // already linked — no duplicate reward
-      localStorage.setItem(key, '1');
+      var sd = null;
+      try { sd = window.getSaveData ? window.getSaveData() : null; } catch(e) {}
+      var linked = (sd && sd.accountLinks) || {};
+
+      // Check existing link state — localStorage preferred, saveData as fallback
+      var isAlreadyLinked = false;
+      try { isAlreadyLinked = !!localStorage.getItem(key); } catch(e) {
+        isAlreadyLinked = !!(linked[provider] && linked[provider].isLinked);
+      }
+      if (isAlreadyLinked) return; // already linked — no duplicate reward
+
+      try { localStorage.setItem(key, '1'); } catch(e) {}
+
       // Grant one-time reward via save data
       try {
-        var sd = window.getSaveData ? window.getSaveData() : null;
         if (sd) {
           sd.gold = (sd.gold || 0) + LINK_REWARD.gold;
           sd.gems = (sd.gems || 0) + LINK_REWARD.gems;
-          var linked = sd.accountLinks || {};
+          linked = sd.accountLinks || {};
           linked[provider] = { isLinked: true, linkedAt: Date.now() };
           sd.accountLinks = linked;
           if (window.saveSaveData) window.saveSaveData();
@@ -491,10 +501,17 @@
 
     function _refreshLinkButtons() {
       if (!_lastPanel) return;
+      var sd = null;
+      try { sd = window.getSaveData ? window.getSaveData() : null; } catch(e) {}
+      var savedLinks = (sd && sd.accountLinks) || {};
       ['apple','google','web'].forEach(function(p) {
         var btn = _lastPanel.querySelector('[data-link="' + p + '"]');
         if (!btn) return;
-        if (localStorage.getItem('wds_linked_' + p)) {
+        var isLinked = false;
+        try { isLinked = !!localStorage.getItem('wds_linked_' + p); } catch(e) {
+          isLinked = !!(savedLinks[p] && savedLinks[p].isLinked);
+        }
+        if (isLinked) {
           btn.classList.add('linked');
           btn.querySelector('.al-status').textContent = '✔ Linked';
         }
@@ -524,7 +541,12 @@
         var btn = document.createElement('button');
         btn.className = 'al-btn ' + p.cls;
         btn.setAttribute('data-link', p.id);
-        var already = !!localStorage.getItem('wds_linked_' + p.id);
+        var already = false;
+        try { already = !!localStorage.getItem('wds_linked_' + p.id); } catch(e) {
+          var _sd2 = null;
+          try { _sd2 = window.getSaveData ? window.getSaveData() : null; } catch(e2) {}
+          already = !!(_sd2 && _sd2.accountLinks && _sd2.accountLinks[p.id] && _sd2.accountLinks[p.id].isLinked);
+        }
         if (already) btn.classList.add('linked');
         var statusSpan = document.createElement('span');
         statusSpan.className = 'al-status';

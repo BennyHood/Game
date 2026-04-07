@@ -123,7 +123,11 @@ function checkDailyLogin(saveData) {
   dailies.lastLoginRewardDay = rewardDay + 1;
   saveData.dailies = dailies;
 
-  // Grant reward items
+  // Grant reward items — all currencies/resources applied here so callers
+  // do not need to re-apply them (prevents double-award bugs).
+  if (reward.gold) {
+    saveData.gold = (saveData.gold || 0) + reward.gold;
+  }
   if (reward.skillPoints) {
     saveData.skillPoints = (saveData.skillPoints || 0) + reward.skillPoints;
   }

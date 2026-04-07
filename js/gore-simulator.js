@@ -1122,22 +1122,26 @@ if (!this._initialized) return;
 
 const profile = WEAPON_GORE[weaponType] || WEAPON_GORE.pistol;
 const gore    = this._enemyGoreMap.get(enemy.id || enemy.uuid);
-const pos     = enemy.mesh ? enemy.mesh.position.clone() : new THREE.Vector3();
 
 // ── DYNAMIC GORE LOD ──────────────────────────────────────────────────
 // HIGH-ENTITY MODE (>= 15 enemies): skip explosion physics, spray flat decals
+// Note: LOD check is before pos.clone() to avoid the allocation in high-entity mode
 const _enemyCntK = (window.enemies && Array.isArray(window.enemies)) ? window.enemies.length
-  : ((window._activeSlimes ? window._activeSlimes.length : 0) + (window._activeCrawlers ? window._activeCrawlers.length : 0));
+  : ((Array.isArray(window._activeSlimes) ? window._activeSlimes.length : 0) + (Array.isArray(window._activeCrawlers) ? window._activeCrawlers.length : 0));
 if (_enemyCntK >= 15) {
   const _kColor = getEnemyGoreColor(enemy);
+  const _kx = enemy.mesh ? enemy.mesh.position.x : 0;
+  const _kz = enemy.mesh ? enemy.mesh.position.z : 0;
   for (let _di = 0; _di < 3; _di++) {
-    this._spawnDecal({ x: pos.x + (Math.random()-0.5)*1.2, y: 0.01, z: pos.z + (Math.random()-0.5)*1.2 }, 0.3 + Math.random()*0.45, _kColor);
+    this._spawnDecal({ x: _kx + (Math.random()-0.5)*1.2, y: 0.01, z: _kz + (Math.random()-0.5)*1.2 }, 0.3 + Math.random()*0.45, _kColor);
   }
   if (gore) gore.cleanup();
   this._enemyGoreMap.delete(enemy.id || enemy.uuid);
   return;
 }
 // LOW-ENTITY MODE: full explosion below
+
+const pos     = enemy.mesh ? enemy.mesh.position.clone() : new THREE.Vector3();
 
 const killedBy = gore ? gore.killedBy : 'membrane';
 
