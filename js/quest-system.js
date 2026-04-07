@@ -4953,9 +4953,14 @@
         console.log('[updateCampScreen] Calling CampWorld.enter with renderer:', _rendererRef);
         let _enterSucceeded = false;
         try {
-          window.CampWorld.enter(_rendererRef, typeof saveData !== 'undefined' ? saveData : {}, campCallbacks);
+          window.CampWorld.enter(_rendererRef, typeof saveData !== 'undefined' ? saveData : {});
           console.log('[updateCampScreen] CampWorld.enter succeeded, isActive:', window.CampWorld.isActive);
           _enterSucceeded = true;
+          const campScreen = document.getElementById('camp-screen');
+          if (campScreen) {
+            campScreen.classList.add('camp-3d-mode');
+            campScreen.style.display = 'flex';
+          }
         } catch (e) {
           console.error('[updateCampWorld] CampWorld.enter failed:', e);
           // Show 2D fallback if 3D camp fails to initialize
