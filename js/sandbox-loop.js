@@ -1781,7 +1781,9 @@
     const ny = (yOffset !== undefined) ? yOffset : (0.12 + Math.random() * 0.25);
     const nx = dirX, nz = dirZ;
     hole.position.set(nx * radius, ny, nz * radius);
-    hole.lookAt(parent.localToWorld(new THREE.Vector3(nx * 2, ny, nz * 2)));
+    // PERF FIX: Use pre-allocated _tmpV3b instead of allocating new Vector3 each hit
+    _tmpV3b.set(nx * 2, ny, nz * 2);
+    hole.lookAt(parent.localToWorld(_tmpV3b));
     hole.visible = true;
     enemy._bulletHoleIndex = idx + 1;
     return hole;
@@ -6395,8 +6397,9 @@
       rx    = _clamp(px + Math.cos(angle) * dist, -ARENA_RADIUS, ARENA_RADIUS);
       rz    = _clamp(pz + Math.sin(angle) * dist, -ARENA_RADIUS, ARENA_RADIUS);
     }
-    const pos   = new THREE.Vector3(rx, 0, rz);
-    const sw    = SkinwalkerEnemy.acquire(scene, pos);
+    // PERF FIX: Use pre-allocated _tmpV3 instead of allocating new Vector3 each spawn
+    _tmpV3.set(rx, 0, rz);
+    const sw    = SkinwalkerEnemy.acquire(scene, _tmpV3);
     if (!sw) return;
     sw.onAttack = function(dmg) {
       if (!player) return;
