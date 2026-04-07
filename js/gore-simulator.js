@@ -1013,6 +1013,20 @@ console.log(`[GoreSim] Pools built: ${MAX_BLOOD_DROPS} drops, ${MAX_CHUNKS} chun
 onHit(enemy, weaponType, hitPoint, hitNormal) {
 if (!this._initialized || !enemy) return;
 
+// ── DYNAMIC GORE LOD ──────────────────────────────────────────────────
+// HIGH-ENTITY MODE (>= 15 enemies): skip all physics, project flat decal only
+const _enemyCnt = (window.enemies && Array.isArray(window.enemies)) ? window.enemies.length
+  : ((window._activeSlimes ? window._activeSlimes.length : 0) + (window._activeCrawlers ? window._activeCrawlers.length : 0));
+if (_enemyCnt >= 15) {
+  const _lodPos = enemy.mesh ? enemy.mesh.position : hitPoint;
+  if (_lodPos) {
+    const _lodColor = getEnemyGoreColor(enemy);
+    this._spawnDecal({ x: _lodPos.x + (Math.random()-0.5)*0.4, y: 0.01, z: _lodPos.z + (Math.random()-0.5)*0.4 }, 0.25 + Math.random()*0.3, _lodColor);
+  }
+  return;
+}
+// LOW-ENTITY MODE: full physics below
+
 const profile = WEAPON_GORE[weaponType] || WEAPON_GORE.pistol;
 
 // Get or create gore state for this enemy
@@ -1108,7 +1122,27 @@ if (!this._initialized) return;
 
 const profile = WEAPON_GORE[weaponType] || WEAPON_GORE.pistol;
 const gore    = this._enemyGoreMap.get(enemy.id || enemy.uuid);
+
+// ── DYNAMIC GORE LOD ──────────────────────────────────────────────────
+// HIGH-ENTITY MODE (>= 15 enemies): skip explosion physics, spray flat decals
+// Note: LOD check is before pos.clone() to avoid the allocation in high-entity mode
+const _enemyCntK = (window.enemies && Array.isArray(window.enemies)) ? window.enemies.length
+  : ((Array.isArray(window._activeSlimes) ? window._activeSlimes.length : 0) + (Array.isArray(window._activeCrawlers) ? window._activeCrawlers.length : 0));
+if (_enemyCntK >= 15) {
+  const _kColor = getEnemyGoreColor(enemy);
+  const _kx = enemy.mesh ? enemy.mesh.position.x : 0;
+  const _kz = enemy.mesh ? enemy.mesh.position.z : 0;
+  for (let _di = 0; _di < 3; _di++) {
+    this._spawnDecal({ x: _kx + (Math.random()-0.5)*1.2, y: 0.01, z: _kz + (Math.random()-0.5)*1.2 }, 0.3 + Math.random()*0.45, _kColor);
+  }
+  if (gore) gore.cleanup();
+  this._enemyGoreMap.delete(enemy.id || enemy.uuid);
+  return;
+}
+// LOW-ENTITY MODE: full explosion below
+
 const pos     = enemy.mesh ? enemy.mesh.position.clone() : new THREE.Vector3();
+
 const killedBy = gore ? gore.killedBy : 'membrane';
 
 // Stop all bleeds

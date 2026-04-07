@@ -3,36 +3,14 @@
 
 (function () {
 var DAILY_LOGIN_REWARDS = [
-  { day: 1,  icon: '💰', label: '100 Gold', gold: 100 },
-  { day: 2,  icon: '⭐', label: '1 Skill Point', skillPoints: 1 },
-  { day: 3,  icon: '💰', label: '200 Gold', gold: 200 },
-  { day: 4,  icon: '💎', label: '1 Attribute Point', attributePoints: 1 },
-  { day: 5,  icon: '💰⭐', label: '300 Gold + 1 Skill Point', gold: 300, skillPoints: 1 },
-  { day: 6,  icon: '⭐⭐', label: '2 Skill Points', skillPoints: 2 },
-  { day: 7,  icon: '🪵', label: '500 Gold + 15 Wood + 15 Stone', gold: 500, wood: 15, stone: 15 },
-  { day: 8,  icon: '💎💰', label: '1 Attr Point + 150 Gold', attributePoints: 1, gold: 150 },
-  { day: 9,  icon: '💎💎', label: '2 Attribute Points', attributePoints: 2 },
-  { day: 10, icon: '💰', label: '750 Gold', gold: 750 },
-  { day: 11, icon: '⭐⭐⭐', label: '3 Skill Points', skillPoints: 3 },
-  { day: 12, icon: '💰💎', label: '500 Gold + 2 Attr Points', gold: 500, attributePoints: 2 },
-  { day: 13, icon: '⭐💎', label: '2 Skill Points + 1 Attr Point', skillPoints: 2, attributePoints: 1 },
-  { day: 14, icon: '💰⭐', label: '1000 Gold + 3 Skill Points', gold: 1000, skillPoints: 3 },
-  { day: 15, icon: '🔴', label: 'Crimson Weapon Skin', skinColor: 'crimson' },
-  { day: 16, icon: '⭐⭐⭐⭐', label: '4 Skill Points', skillPoints: 4 },
-  { day: 17, icon: '💰💎', label: '800 Gold + 3 Attr Points', gold: 800, attributePoints: 3 },
-  { day: 18, icon: '⭐⭐⭐⭐⭐', label: '5 Skill Points', skillPoints: 5 },
-  { day: 19, icon: '💰', label: '1200 Gold', gold: 1200 },
-  { day: 20, icon: '💎⭐', label: '4 Attr Points + 2 Skill Points', attributePoints: 4, skillPoints: 2 },
-  { day: 21, icon: '💰⭐', label: '1500 Gold + 5 Skill Points', gold: 1500, skillPoints: 5 },
-  { day: 22, icon: '🪨', label: '15 Wood + 15 Stone', wood: 15, stone: 15 },
-  { day: 23, icon: '⭐⭐⭐⭐⭐⭐', label: '6 Skill Points', skillPoints: 6 },
-  { day: 24, icon: '💰💎', label: '2000 Gold + 4 Attr Points', gold: 2000, attributePoints: 4 },
-  { day: 25, icon: '⭐💎', label: '8 Skill Points + 3 Attr Points', skillPoints: 8, attributePoints: 3 },
-  { day: 26, icon: '💰', label: '2500 Gold', gold: 2500 },
-  { day: 27, icon: '⭐', label: '10 Skill Points', skillPoints: 10 },
-  { day: 28, icon: '💎💰', label: '5 Attr Points + 3000 Gold', attributePoints: 5, gold: 3000 },
-  { day: 29, icon: '⭐💎', label: '15 Skill Points + 5 Attr Points', skillPoints: 15, attributePoints: 5 },
-  { day: 30, icon: '🏆', label: '5000 Gold + Random Starting Weapon', gold: 5000, randomWeapon: true }
+  { day: 1, icon: '💰', label: '150 Gold',                      gold: 150,  gems: 0 },
+  { day: 2, icon: '💎', label: '3 Gems',                        gold: 0,    gems: 3 },
+  { day: 3, icon: '💰💎', label: '300 Gold + 5 Gems',           gold: 300,  gems: 5 },
+  { day: 4, icon: '⭐', label: '2 Skill Points',                gold: 0,    skillPoints: 2 },
+  { day: 5, icon: '💰⭐', label: '500 Gold + 1 Attr Point',     gold: 500,  attributePoints: 1 },
+  { day: 6, icon: '💎⭐', label: '10 Gems + 2 Skill Points',    gold: 0,    gems: 10, skillPoints: 2 },
+  { day: 7, icon: '🏆', label: 'EPIC CHEST — 2000 Gold + 20 Gems + Random Weapon',
+    gold: 2000, gems: 20, randomWeapon: true, isEpic: true }
 ];
 
 var QUEST_POOL = [
@@ -145,12 +123,19 @@ function checkDailyLogin(saveData) {
   dailies.lastLoginRewardDay = rewardDay + 1;
   saveData.dailies = dailies;
 
-  // Grant reward items
+  // Grant reward items — all currencies/resources applied here so callers
+  // do not need to re-apply them (prevents double-award bugs).
+  if (reward.gold) {
+    saveData.gold = (saveData.gold || 0) + reward.gold;
+  }
   if (reward.skillPoints) {
     saveData.skillPoints = (saveData.skillPoints || 0) + reward.skillPoints;
   }
   if (reward.attributePoints) {
     saveData.attributePoints = (saveData.attributePoints || 0) + reward.attributePoints;
+  }
+  if (reward.gems) {
+    saveData.gems = (saveData.gems || 0) + reward.gems;
   }
   if (reward.accountXP && window.GameAccount && typeof window.GameAccount.addXP === 'function') {
     window.GameAccount.addXP(reward.accountXP, 'Daily Reward', saveData);
@@ -201,11 +186,13 @@ function checkDailyLogin(saveData) {
     streak: dailies.loginStreak,
     day: rewardDay + 1,
     gold: reward.gold || 0,
+    gems: reward.gems || 0,
     item: reward.item || null,
     essence: reward.essence || 0,
     spinTokens: reward.spinTokens || 0,
     skillPoints: reward.skillPoints || 0,
     attributePoints: reward.attributePoints || 0,
+    isEpic: reward.isEpic || false,
     label: reward.label || ''
   };
 }

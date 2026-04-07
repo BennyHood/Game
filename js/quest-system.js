@@ -4339,126 +4339,204 @@
     function _showDailyRewardPanel() {
       if (window.CampWorld && window.CampWorld.isActive) window.CampWorld.pauseInput();
       const overlay = document.createElement('div');
-      overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.92);z-index:500;display:flex;align-items:center;justify-content:center;';
+      overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.92);z-index:500;display:flex;align-items:center;justify-content:center;overflow:hidden;';
       const _closeDailyOverlay = () => {
         overlay.remove();
         _updateCampCornerWidgets();
         if (window.CampWorld && window.CampWorld.isActive) window.CampWorld.resumeInput();
       };
+
+      // CSS keyframes injected once
+      if (!document.getElementById('daily-track-style')) {
+        const sty = document.createElement('style');
+        sty.id = 'daily-track-style';
+        sty.textContent = `
+@keyframes dtCardPop{0%{transform:scale(1)}40%{transform:scale(1.25)}70%{transform:scale(0.95)}100%{transform:scale(1)}}
+@keyframes dtGoldCoin{0%{opacity:1;transform:translate(0,0) rotate(0deg)}100%{opacity:0;transform:translate(var(--cx),var(--cy)) rotate(720deg)}}
+@keyframes dtEpicPulse{0%,100%{box-shadow:0 0 18px #FFD70088,0 0 36px #FFD70044}50%{box-shadow:0 0 36px #FFD700cc,0 0 72px #FFD700aa}}
+@keyframes dtSlideIn{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+.dt-card{background:rgba(0,0,0,0.5);border-radius:10px;padding:8px 4px;text-align:center;cursor:default;transition:border-color .25s,box-shadow .25s,transform .2s;position:relative;}
+.dt-card.today{cursor:pointer;}
+.dt-card.today:hover{transform:scale(1.06);}
+.dt-card.claimed{opacity:.6;filter:grayscale(40%);}
+.dt-card.claimed::after{content:'✔';position:absolute;top:2px;right:4px;font-size:10px;color:#2ecc71;}
+.dt-card.epic-day{background:linear-gradient(135deg,#1a0a2e,#2a0040);}
+.dt-claim-btn{display:block;margin:16px auto 0;padding:12px 32px;font-family:"Bangers",cursive;font-size:1.3em;letter-spacing:2px;border-radius:10px;cursor:pointer;transition:transform .15s;}
+.dt-claim-btn:active{transform:scale(0.94);}
+.dt-coin-particle{position:fixed;pointer-events:none;font-size:20px;z-index:9999;animation:dtGoldCoin 1s ease-out forwards;}
+`;
+        document.head.appendChild(sty);
+      }
+
+      // Shared AudioContext for cha-ching — reused across claims to avoid browser AudioContext limits
+      let _chachingAudioCtx = null;
+      function _getChaChingAudioCtx() {
+        const Ctor = window.AudioContext || window.webkitAudioContext;
+        if (!Ctor) return null;
+        if (!_chachingAudioCtx) _chachingAudioCtx = new Ctor();
+        if (_chachingAudioCtx.state === 'suspended' && _chachingAudioCtx.resume) {
+          _chachingAudioCtx.resume().catch(function() {});
+        }
+        return _chachingAudioCtx;
+      }
+
+      // Helper: play cha-ching sound via Web Audio API
+      function _playChaChingSound() {
+        try {
+          const ctx = _getChaChingAudioCtx();
+          if (!ctx) return;
+          const gain = ctx.createGain();
+          const startAt = ctx.currentTime;
+          gain.gain.setValueAtTime(0.5, startAt);
+          gain.gain.exponentialRampToValueAtTime(0.001, startAt + 0.8);
+          gain.connect(ctx.destination);
+          let lastStop = startAt;
+          // Two tones for "cha-ching"
+          [880, 1320].forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const noteStart = startAt + i * 0.12;
+            const noteStop  = noteStart + 0.35;
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, noteStart);
+            osc.connect(gain);
+            osc.start(noteStart);
+            osc.stop(noteStop);
+            if (noteStop > lastStop) lastStop = noteStop;
+          });
+          setTimeout(() => { try { gain.disconnect(); } catch(e) {} },
+            Math.ceil((lastStop - startAt) * 1000) + 100);
+        } catch(e) { /* audio not available */ }
+      }
+
+      // Helper: spawn CSS coin particles from a card element
+      function _spawnCoinParticles(cardEl) {
+        const rect = cardEl.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        for (let i = 0; i < 18; i++) {
+          const coin = document.createElement('div');
+          coin.className = 'dt-coin-particle';
+          coin.textContent = '🪙';
+          const angle = (i / 18) * Math.PI * 2;
+          const dist = 80 + Math.random() * 120;
+          coin.style.setProperty('--cx', Math.cos(angle) * dist + 'px');
+          coin.style.setProperty('--cy', Math.sin(angle) * dist - 60 + 'px');
+          coin.style.left = cx + 'px';
+          coin.style.top  = cy + 'px';
+          coin.style.animationDelay = (Math.random() * 0.2) + 's';
+          document.body.appendChild(coin);
+          setTimeout(() => coin.remove(), 1400);
+        }
+      }
+
       const panel = document.createElement('div');
-      panel.style.cssText = 'background:linear-gradient(135deg,#1a1a2e,#0d1020);border:4px solid #FFD700;border-radius:14px;padding:24px;max-width:90vw;width:380px;color:#fff;font-family:"Bangers",cursive;text-align:center;box-shadow:0 0 30px rgba(255,215,0,0.5);';
+      panel.style.cssText = 'background:linear-gradient(135deg,#1a1a2e,#0d1020);border:4px solid #FFD700;border-radius:16px;padding:24px 20px;max-width:92vw;width:440px;color:#fff;font-family:"Bangers",cursive;text-align:center;box-shadow:0 0 40px rgba(255,215,0,0.6);position:relative;animation:dtSlideIn .35s ease-out;';
 
-      // Rarity map for each daily reward day (1-indexed, cycles after day 7)
-      const _dailyDayRarity = ['common','uncommon','uncommon','rare','epic','legendary','mythic'];
-      const _dailyRarityColors = {
-        common:    '#aaaaaa', uncommon: '#55cc55', rare:      '#44aaff',
-        epic:      '#aa44ff', legendary:'#ffaa00', mythic:    '#ff4444'
-      };
-
-      // Build daily login calendar
       if (window.GameDailies) {
-        const streak = (saveData.dailies && saveData.dailies.loginStreak) || 0;
+        const rewards = window.GameDailies.DAILY_LOGIN_REWARDS; // always 7 entries now
+        const streak  = (saveData.dailies && saveData.dailies.loginStreak) || 0;
         const canClaim = window.GameDailies.isDailyAvailable(saveData);
-        const peeked = canClaim ? window.GameDailies.peekDailyReward(saveData) : null;
-        const nextDay = peeked ? peeked.day : 0; // 1-based day number
-        const rewards = window.GameDailies.DAILY_LOGIN_REWARDS;
-        let html = '<div style="color:#FFD700;font-size:1.6em;margin-bottom:12px;text-shadow:2px 2px 0 #000;letter-spacing:2px;">🎁 DAILY REWARD</div>';
-        html += '<div style="font-family:Arial,sans-serif;font-size:13px;color:#ccc;margin-bottom:16px;">Login Streak: <b style="color:#FFD700;">' + streak + ' days</b></div>';
-        html += '<div class="daily-login-strip" style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;max-width:100%;overflow-y:auto;max-height:280px;">';
+        const peeked  = canClaim ? window.GameDailies.peekDailyReward(saveData) : null;
+        // Which day within the 7-day cycle is "today"?
+        const todayDayNum = canClaim && peeked ? ((peeked.day - 1) % 7) + 1 : 0;
+        // How many days in the current cycle have been claimed
+        const cycleStreak = streak % 7;
+        // claimedDayCount: days claimed in the current 7-day cycle (handles full-week case)
+        const claimedDayCount = (cycleStreak === 0 && streak > 0) ? 7 : cycleStreak;
+
+        const _rarityColors = ['#aaaaaa','#55cc55','#44aaff','#aa44ff','#ffaa00','#ff7700','#FFD700'];
+
+        let html = '<div style="font-size:1.7em;letter-spacing:3px;color:#FFD700;text-shadow:2px 2px 0 #000;margin-bottom:6px;">🎁 WEEKLY REWARD TRACK</div>';
+        html += '<div style="font-family:Arial,sans-serif;font-size:12px;color:#ccc;margin-bottom:16px;">Streak: <b style="color:#FFD700;">' + streak + '</b> days &nbsp;|&nbsp; Week cycle day <b style="color:#adf;">' + claimedDayCount + '/7</b></div>';
+        html += '<div id="dt-track-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:18px;">';
+
         rewards.forEach(function(r, i) {
-          const dayNum = i + 1;
-          const claimed = streak >= dayNum && !canClaim;
-          const isToday = canClaim && nextDay === dayNum;
-          const dayRarity = _dailyDayRarity[(dayNum - 1) % _dailyDayRarity.length];
-          const rarityColor = _dailyRarityColors[dayRarity] || '#aaaaaa';
-          const rarityBorder = isToday ? '2px solid ' + rarityColor : (claimed ? '2px solid rgba(46,204,113,0.4)' : '2px solid rgba(255,215,0,0.2)');
-          const rarityGlow  = isToday ? '0 0 10px ' + rarityColor + '88' : 'none';
-          const cls = 'daily-login-day' + (claimed ? ' claimed' : '') + (isToday ? ' today' : '');
-          html += '<div class="' + cls + '" style="border:' + rarityBorder + ';box-shadow:' + rarityGlow + ';min-width:0;">';
-          html += '<div class="day-num" style="font-size:10px;">Day ' + dayNum + '</div>';
-          html += '<div class="day-reward" style="font-size:16px;color:' + (claimed ? '#2ecc71' : isToday ? rarityColor : '#aaa') + '">' + (claimed ? '✅' : (r.icon || '💰')) + '</div>';
-          html += '<div class="day-gold" style="color:' + rarityColor + ';font-size:9px;">' + (r.gold ? r.gold + 'g' : '') + '</div>';
+          const dayNum  = i + 1;
+          // A day is claimed if its number falls within claimedDayCount when not claiming today,
+          // or strictly below todayDayNum when claiming today.
+          const isClaimed = canClaim ? dayNum < todayDayNum : dayNum <= claimedDayCount;
+          const isToday  = canClaim && dayNum === todayDayNum;
+          const isEpic   = r.isEpic || dayNum === 7;
+          const rColor   = _rarityColors[i] || '#FFD700';
+          const border   = isToday  ? '2px solid ' + rColor :
+                           isClaimed ? '2px solid rgba(46,204,113,0.3)' :
+                                       '2px solid rgba(255,255,255,0.1)';
+          const glow     = isToday  ? '0 0 12px ' + rColor + 'aa' : isEpic ? '0 0 8px #FFD70044' : 'none';
+          const extraCls = (isClaimed ? ' claimed' : '') + (isToday ? ' today' : '') + (isEpic ? ' epic-day' : '');
+          html += '<div class="dt-card' + extraCls + '" data-day="' + dayNum + '" style="border:' + border + ';box-shadow:' + glow + ';' + (isEpic ? 'animation:dtEpicPulse 2s ease-in-out infinite;' : '') + '">';
+          html += '<div style="font-size:9px;color:#888;margin-bottom:2px;">DAY ' + dayNum + '</div>';
+          html += '<div style="font-size:' + (isEpic ? '22px' : '18px') + ';">' + (isClaimed ? '✅' : r.icon) + '</div>';
+          if (r.gold)   html += '<div style="font-size:8px;color:' + rColor + ';">' + r.gold + 'g</div>';
+          if (r.gems)   html += '<div style="font-size:8px;color:#88eeff;">' + r.gems + '💎</div>';
+          if (isEpic && !isClaimed) html += '<div style="font-size:7px;color:#FFD700;margin-top:2px;">EPIC!</div>';
           html += '</div>';
         });
         html += '</div>';
 
-        // Claim button — styled in the rarity color of today's reward
-        if (canClaim) {
-          const todayRarity = _dailyDayRarity[(nextDay - 1) % _dailyDayRarity.length];
-          const todayColor  = _dailyRarityColors[todayRarity] || '#2ecc71';
-          html += `<button id="claim-daily-btn" class="daily-claim-btn" style="background:linear-gradient(to bottom,${todayColor}cc,${todayColor}88);border:3px solid ${todayColor};box-shadow:0 0 12px ${todayColor}66,3px 3px 0 #000;">CLAIM REWARD</button>`;
-          html += '<div id="daily-reward-result" style="min-height:36px;margin-top:10px;"></div>';
+        if (canClaim && todayDayNum > 0) {
+          const todayReward = rewards[todayDayNum - 1];
+          const todayColor  = _rarityColors[todayDayNum - 1];
+          const isEpicDay   = todayReward.isEpic || todayDayNum === 7;
+          html += '<div style="font-family:Arial,sans-serif;font-size:13px;color:#ddd;margin-bottom:12px;">Today\'s reward: <b style="color:' + todayColor + ';">' + (todayReward.label || todayReward.icon) + '</b></div>';
+          html += '<button id="dt-claim-btn" class="dt-claim-btn" style="background:linear-gradient(to bottom,' + todayColor + 'cc,' + todayColor + '66);border:3px solid ' + todayColor + ';color:#fff;box-shadow:0 0 16px ' + todayColor + '88,3px 3px 0 #000;' + (isEpicDay ? 'animation:dtEpicPulse 1.5s ease-in-out infinite;' : '') + '">' + (isEpicDay ? '🏆 CLAIM EPIC REWARD' : '🎁 CLAIM DAY ' + todayDayNum) + '</button>';
+          html += '<div id="dt-result" style="min-height:32px;margin-top:10px;font-family:Arial,sans-serif;font-size:13px;"></div>';
         } else {
-          html += '<div style="margin-top:16px;color:#aaa;font-family:Arial,sans-serif;font-size:13px;">✅ Already claimed today! Come back tomorrow.</div>';
+          html += '<div style="margin-top:8px;color:#aaa;font-family:Arial,sans-serif;font-size:13px;">✅ Already claimed today! Come back tomorrow.</div>';
         }
 
         panel.innerHTML = html;
 
-        if (canClaim) {
+        if (canClaim && todayDayNum > 0) {
           let _claimDone = false;
-          panel.querySelector('#claim-daily-btn').onclick = function() {
+          const claimBtn = panel.querySelector('#dt-claim-btn');
+          const cardEl   = panel.querySelector('[data-day="' + todayDayNum + '"]');
+
+          claimBtn.onclick = function() {
             if (_claimDone) return;
             _claimDone = true;
+
             const result = window.GameDailies.checkDailyLogin(saveData);
             if (!result.alreadyClaimed) {
-              saveData.gold = (saveData.gold || 0) + (result.gold || 0);
-              var _rewardParts = [];
-              if (result.gold) _rewardParts.push('+' + result.gold + ' Gold');
-              if (result.skillPoints) _rewardParts.push('+' + result.skillPoints + ' Skill Points');
-              if (result.attributePoints) _rewardParts.push('+' + result.attributePoints + ' Attr Points');
+              // checkDailyLogin already applies gold, gems, and all other rewards to saveData.
+              // Only build the parts list here for the stat-change notification.
+              const _parts = [];
+              if (result.gold)            _parts.push('+' + result.gold + ' Gold');
+              if (result.gems)            _parts.push('+' + result.gems + ' Gems');
+              if (result.skillPoints)     _parts.push('+' + result.skillPoints + ' Skill Pts');
+              if (result.attributePoints) _parts.push('+' + result.attributePoints + ' Attr Pts');
               saveSaveData();
-              showStatChange('🎁 Day ' + result.day + ' Reward: ' + (_rewardParts.join(', ') || 'Claimed!'));
+              showStatChange('🎁 Day ' + result.day + ': ' + (_parts.join(' · ') || 'Claimed!'));
             }
 
-            // Determine rarity of claimed reward
-            // day is 1-based; _dailyDayRarity is 0-based: day-1 maps index 0→common … 6→mythic
-            const dayRarity   = _dailyDayRarity[(result.day - 1) % _dailyDayRarity.length];
-            const rarityColor = _dailyRarityColors[dayRarity] || '#aaaaaa';
-            const rarityName  = { common:'Common', uncommon:'Uncommon', rare:'Rare', epic:'Epic', legendary:'Legendary', mythic:'Mythic' }[dayRarity] || 'Common';
+            // Juice: card pop animation + glow
+            if (cardEl) {
+              cardEl.style.animation = 'dtCardPop 0.5s ease-out';
+              cardEl.style.boxShadow = '0 0 28px ' + _rarityColors[todayDayNum - 1] + 'cc';
+              cardEl.style.borderColor = _rarityColors[todayDayNum - 1];
+              _spawnCoinParticles(cardEl);
+            }
+            _playChaChingSound();
 
-            // Disable the claim button immediately
-            const btn = panel.querySelector('#claim-daily-btn');
-            if (btn) { btn.disabled = true; }
+            claimBtn.disabled = true;
+            claimBtn.textContent = '✅ Claimed!';
+            claimBtn.style.opacity = '0.6';
 
-            // Prepare the result element — will show badge after escalation finishes
-            const resultEl = panel.querySelector('#daily-reward-result');
+            // Show result badge
+            const rEl = panel.querySelector('#dt-result');
+            if (rEl) {
+              rEl.style.color = _rarityColors[todayDayNum - 1];
+              rEl.innerHTML = '⭐ ' + (result.label || 'Reward claimed!');
+            }
 
-            // Run escalation reveal; badge pops in at the end
+            // Panel border glow upgrade
+            panel.style.borderColor = _rarityColors[todayDayNum - 1];
+            panel.style.boxShadow   = '0 0 60px ' + _rarityColors[todayDayNum - 1] + '88, 0 0 30px ' + _rarityColors[todayDayNum - 1] + '44';
+
             if (typeof window.rarityEscalationReveal === 'function') {
-              window.rarityEscalationReveal(panel, dayRarity, {
-                goldEl: null, // no inline counter; gold was already awarded above
-                onComplete: function() {
-                  // Tint panel border to final rarity colour
-                  panel.style.borderColor = rarityColor;
-                  panel.style.boxShadow   = `0 0 40px ${rarityColor}66, 0 0 20px ${rarityColor}33`;
-                  if (resultEl) {
-                    resultEl.innerHTML = '';
-                    const badge = document.createElement('div');
-                    badge.className = 'daily-reward-badge';
-                    badge.style.border      = `2px solid ${rarityColor}`;
-                    badge.style.color       = rarityColor;
-                    badge.style.textShadow  = `0 0 10px ${rarityColor}88`;
-                    badge.textContent = `⭐ ${rarityName} — +${result.gold} Gold!`;
-                    resultEl.appendChild(badge);
-                  }
-                }
-              });
-            } else if (typeof window.spawnRarityEffects === 'function') {
-              // Fallback
-              window.spawnRarityEffects(panel, dayRarity);
-              // Tint panel border to rarity colour
-              panel.style.borderColor = rarityColor;
-              panel.style.boxShadow   = `0 0 40px ${rarityColor}66, 0 0 20px ${rarityColor}33`;
-              if (resultEl) {
-                resultEl.innerHTML = '';
-                const badge = document.createElement('div');
-                badge.className = 'daily-reward-badge';
-                badge.style.border      = `2px solid ${rarityColor}`;
-                badge.style.color       = rarityColor;
-                badge.style.textShadow  = `0 0 10px ${rarityColor}88`;
-                badge.textContent = `⭐ ${rarityName} — +${result.gold} Gold!`;
-                resultEl.appendChild(badge);
-              }
+              const _dailyRarityByDay = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'mythic'];
+              const _claimedDayIdx = Math.max(1, Math.min(_dailyRarityByDay.length, (result && result.day) || todayDayNum));
+              const _claimRarity = _dailyRarityByDay[_claimedDayIdx - 1];
+              window.rarityEscalationReveal(panel, _claimRarity, {});
             }
           };
         }
@@ -4466,7 +4544,7 @@
         panel.innerHTML = '<div style="color:#FFD700;font-size:1.4em;">Daily Rewards not available</div>';
       }
 
-      // Close button — only way to dismiss the panel
+      // Close button
       const closeBtn = document.createElement('button');
       closeBtn.textContent = '✕  Close';
       closeBtn.style.cssText = 'position:absolute;top:12px;right:16px;background:none;border:1px solid rgba(255,255,255,0.2);color:#ccc;font-size:14px;cursor:pointer;font-family:"Bangers",cursive;padding:2px 10px;border-radius:8px;letter-spacing:1px;';
@@ -4474,7 +4552,6 @@
       panel.style.position = 'relative';
       panel.appendChild(closeBtn);
       overlay.appendChild(panel);
-      // Clicking the dark backdrop also closes
       overlay.onclick = (e) => { if (e.target === overlay) _closeDailyOverlay(); };
       document.body.appendChild(overlay);
     }

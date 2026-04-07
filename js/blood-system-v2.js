@@ -814,6 +814,31 @@ _decals.push(d);
 - hitPoint   — THREE.Vector3 world position of hit
 - hitNormal  — THREE.Vector3 surface normal at hit (optional)
   */
+// ══════════════════════════════════════════
+//  DYNAMIC GORE LOD
+//  < 15 enemies  → full physics / ultra-detailed gore
+//  >= 15 enemies → skip physics, project flat decal only
+// ══════════════════════════════════════════
+function _isHighEntityMode() {
+var cnt = 0;
+if (window.enemies && Array.isArray(window.enemies)) {
+cnt = window.enemies.length;
+} else {
+if (Array.isArray(window._activeSlimes))   cnt += window._activeSlimes.length;
+if (Array.isArray(window._activeCrawlers)) cnt += window._activeCrawlers.length;
+}
+return cnt >= 15;
+}
+
+// Spawn a single flat directional blood decal directly onto the ground (Y=0.01)
+// Used in HIGH-ENTITY mode to avoid all airborne trajectory math.
+function _spawnLodDecal(ex, ez, col) {
+var radius = 0.35 + Math.random() * 0.45;
+_spawnDecal(ex + (Math.random() - 0.5) * 0.6, ez + (Math.random() - 0.5) * 0.6, radius, col.base);
+// Second overlapping splat for visual richness without extra CPU cost
+_spawnDecal(ex + (Math.random() - 0.5) * 0.3, ez + (Math.random() - 0.5) * 0.3, radius * 0.6, col.dark);
+}
+
   function hit(enemy, weaponKey, hitPoint, hitNormal) {
   if (!_ready || !enemy) return;
 
@@ -822,7 +847,15 @@ var eId  = enemy.id !== undefined ? enemy.id : enemy.uuid;
 var eType = enemy.enemyType || 'default';
 var col  = ENEMY_BLOOD[eType] || ENEMY_BLOOD.default;
 
-// Get or create gore state
+// ── DYNAMIC GORE LOD ──────────────────────────────────────────────────
+// HIGH-ENTITY MODE (>= 15 enemies): skip all physics, drop a flat decal only
+if (_isHighEntityMode()) {
+var _lodX = hitPoint ? hitPoint.x : (enemy.mesh ? enemy.mesh.position.x : 0);
+var _lodZ = hitPoint ? hitPoint.z : (enemy.mesh ? enemy.mesh.position.z : 0);
+_spawnLodDecal(_lodX, _lodZ, col);
+return;
+}
+// LOW-ENTITY MODE (< 15 enemies): fall through to full physics below
 var gs = _goreMap.get(eId);
 if (!gs) {
 gs = makeGoreState(enemy, eType);
@@ -931,12 +964,28 @@ var ey = enemy.mesh ? enemy.mesh.position.y : 0;
 var ez = enemy.mesh ? enemy.mesh.position.z : 0;
 
 var gs = _goreMap.get(eId);
-var killedBy = gs ? gs.killedBy : 'core';
 
 // Stop all streams for this enemy
 for (var i = 0; i < _streams.length; i++) {
 if (_streams[i].enemy === enemy) _streams[i].alive = false;
 }
+
+// ── DYNAMIC GORE LOD ──────────────────────────────────────────────────
+// HIGH-ENTITY MODE (>= 15 enemies): skip explosion physics, spray larger flat decals
+if (_isHighEntityMode()) {
+_spawnLodDecal(ex, ez, col);
+_spawnLodDecal(ex + (Math.random() - 0.5) * 0.8, ez + (Math.random() - 0.5) * 0.8, col);
+_spawnLodDecal(ex + (Math.random() - 0.5) * 0.5, ez + (Math.random() - 0.5) * 0.5, col);
+if (gs) {
+  gs.alive = false;
+  for (var j = 0; j < gs.wounds.length; j++) gs.wounds[j].alive = false;
+}
+_goreMap.delete(eId);
+return;
+}
+// LOW-ENTITY MODE (< 15 enemies): full explosion effects below
+
+var killedBy = gs ? gs.killedBy : 'core';
 
 // DEATH EXPLOSION based on weapon and organ
 _killExplosion(ex, ey, ez, wp, col, killedBy, enemy);

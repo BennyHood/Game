@@ -182,7 +182,9 @@
     
     // Blood drips array - updated in main game loop to avoid many individual RAF loops
     let bloodDrips = [];
-    const MAX_BLOOD_DRIPS = 40;
+    // When BloodV2 is loaded it owns all gore visuals; cap legacy drips to 0 to prevent
+    // per-hit new THREE.Mesh() allocations that cause GC spikes during gameplay.
+    const MAX_BLOOD_DRIPS = window.BloodV2 ? 0 : 40;
     
     // Shared geometry for enemy bullet-hole decals (reused across all enemies for performance)
     // Lazily initialized to avoid crashing if THREE.js CDN hasn't loaded yet
