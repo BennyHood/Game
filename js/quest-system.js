@@ -4777,7 +4777,6 @@
       // Always force 3D mode — index.html is a pure 3D Camp Hub.
       // The 2D building cards must never be visible; CSS hides them when camp-3d-mode is set.
       const _campScreenEl = document.getElementById('camp-screen');
-      const canUse3DCamp = !!(window.CampWorld && renderer);
       if (_campScreenEl) _campScreenEl.classList.add('camp-3d-mode');
       // Belt-and-suspenders: also hide the buildings section directly
       const _campBuildingsEl = document.getElementById('camp-buildings-section');
