@@ -4828,8 +4828,10 @@
       // building IDs to the existing 2D UI functions so interactions still work.
       // Guard: renderer is module-scoped and is null until init() runs; skip 3D mode
       // if renderer is not yet ready (e.g. very first frame before init completes).
+      // Declared at this scope so the late fallback below can reuse the same callbacks.
+      let campCallbacks;
       if (window.CampWorld && _rendererRef) {
-        const campCallbacks = {
+        campCallbacks = {
           questMission:        () => showQuestHall(),
           skillTree:           () => document.getElementById('camp-skills-tab').click(),
           armory:              () => {
@@ -5528,9 +5530,14 @@
       if (menuGold) menuGold.textContent = `GOLD: ${saveData.gold}`;
 
       // Fallback: ensure CampWorld is entered even if the renderer ref was unavailable earlier
-      if (window.CampWorld && !window.CampWorld.isActive) {
-          window.CampWorld.enter(_rendererRef, typeof saveData !== 'undefined' ? saveData : {});
-          document.getElementById('camp-screen').classList.add('camp-3d-mode');
+      if (window.CampWorld && !window.CampWorld.isActive && _rendererRef) {
+          try {
+            window.CampWorld.enter(_rendererRef, saveData, campCallbacks);
+            const _campScreenEl = document.getElementById('camp-screen');
+            if (_campScreenEl) _campScreenEl.classList.add('camp-3d-mode');
+          } catch (e) {
+            console.error('[updateCampScreen] Fallback CampWorld.enter failed:', e);
+          }
       }
     }
 
