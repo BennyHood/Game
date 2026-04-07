@@ -111,7 +111,7 @@
         loadingScreen.style.opacity = '0';
         loadingScreen.style.pointerEvents = 'none';
         setTimeout(function() {
-          loadingScreen.style.display = 'none';
+          loadingScreen.style.setProperty('display', 'none', 'important');
         }, 500);
 
         // Hide main menu
