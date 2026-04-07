@@ -411,6 +411,7 @@
   let _activeLeapingSlimes = [];   // live list of active leaping slime enemies
   let _activeSkinwalkers = [];     // live list of active skinwalker enemies
   let _projPool = [];              // reusable projectile objects
+  let _projPoolGeo = null;         // shared geometry for pool slots (set once in _buildProjectilePool)
   let _activeProjList = [];        // currently flying projectiles
   let _animateErrorShown = false;  // prevent spamming error display every frame
   // EXP gem object pool (pre-allocated ExpGem instances, no new THREE.Mesh during gameplay)
@@ -1176,10 +1177,10 @@
 
   // ─── Projectile pool ─────────────────────────────────────────────────────────
   function _buildProjectilePool() {
-    const geo = new THREE.SphereGeometry(0.065, 5, 5); // smaller, bullet-like
+    _projPoolGeo = new THREE.SphereGeometry(0.065, 5, 5); // smaller, bullet-like
     for (let i = 0; i < POOL_SIZE_PROJECTILES; i++) {
       const mat = new THREE.MeshBasicMaterial({ color: 0xFFFFAA });
-      const m = new THREE.Mesh(geo, mat);
+      const m = new THREE.Mesh(_projPoolGeo, mat);
       m.visible = false;
       scene.add(m);
       _projPool.push({
@@ -1201,7 +1202,7 @@
   function _fireProjectile(fromX, fromZ, toX, toZ, weaponKey, weaponDmg, explosionRadius) {
     let p = _projPool.find(function (o) { return !o.active; });
     if (!p) {
-      const geo = new THREE.SphereGeometry(0.065, 5, 5);
+      const geo = _projPoolGeo || new THREE.SphereGeometry(0.065, 5, 5);
       const mat = new THREE.MeshBasicMaterial({ color: 0xFFFFAA });
       const m = new THREE.Mesh(geo, mat);
       m.visible = false;
