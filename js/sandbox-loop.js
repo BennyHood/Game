@@ -3868,12 +3868,12 @@
         // Ring 1: Fast energy pulse ring (bright cyan-white, outruns everything)
         // Ring 2-5: Original layered rings (white → orange → crimson → dark)
         const _ringDefs = [
-          [0xFFEECC, 0.95, 0.00, 0.30, 0.80, 0.065],
-          [0xCCFFFF, 0.85, 0.10, 0.25, 0.70, 0.050],
-          [0xFFFFFF, 1.00, 0.05, 0.20, 0.55, 0.042],
-          [0xFF8800, 0.90, 0.08, 0.38, 0.40, 0.026],
-          [0xFF2200, 0.80, 0.07, 0.52, 0.28, 0.016],
-          [0x880033, 0.60, 0.06, 0.75, 0.16, 0.009],
+          [0xFFFFFF, 1.00, 0.00, 0.30, 0.90, 0.075],  // blinding white core
+          [0xCCFFFF, 0.95, 0.05, 0.22, 0.78, 0.060],  // inner cyan pulse
+          [0x88FFFF, 0.90, 0.08, 0.40, 0.58, 0.045],  // mid cyan ring
+          [0x44EEFF, 0.75, 0.10, 0.60, 0.40, 0.028],  // outer cyan
+          [0x00CCFF, 0.55, 0.09, 0.85, 0.25, 0.015],  // far energy fade
+          [0x0088CC, 0.35, 0.08, 1.20, 0.14, 0.008],  // distant deep blue edge
         ];
         // Lazy-init the pool once (pre-allocate ring meshes for all defs (currently 6), reuse every level-up)
         if (!_lvlUpRingsInited) {
@@ -4165,7 +4165,7 @@
 
     // ── Fiery "LEVEL UP" text animation (Grind Survivors style) ──
     // Spawns a massive burning text above the player before showing the upgrade modal.
-    setTimeout(_spawnFireLevelUpText, 400); // slight delay after small text
+    setTimeout(_spawnFireLevelUpText, 0); // fire immediately with small text
 
     // Delay before upgrade modal appears so player can enjoy the fiery text animation
     window.isPaused = true;
@@ -4226,8 +4226,8 @@
       document.body.appendChild(_smallLvlUpEl);
     }
 
-    // Target size: 50% of fire text's clamp(44px, 9vw, 88px) = clamp(22px, 4.5vw, 44px)
-    var targetSize = Math.min(44, Math.max(22, window.innerWidth * 0.045));
+    // Target size: 50% of fire text's clamp(22px, 4.5vw, 44px) = clamp(11px, 2.25vw, 22px)
+    var targetSize = Math.min(22, Math.max(11, window.innerWidth * 0.0225));
     var startSize = targetSize * 0.2;
     _smallLvlUpEl.textContent = 'LEVEL UP!';
     _smallLvlUpEl.style.display = 'block';
@@ -4271,7 +4271,7 @@
   var _fireLvlEmbers = [];
   var _FIRE_EMBER_COUNT = 36;
   var _fireLvlInited = false;
-  var _fireLvlEmberColors = ['#FF4500','#FFD700','#FF6600','#FFA500'];
+  var _fireLvlEmberColors = ['#CCCCCC','#FFFFFF','#AAAAAA','#E8E8E8'];
   var _fireLvlRafId = 0; // tracks active RAF so back-to-back level-ups cancel the prior animation
 
   function _initFireLevelUpPool() {
@@ -4293,38 +4293,15 @@
       'will-change:transform,opacity',
     ].join(';');
 
-    var eyeEl = document.createElement('div');
-    eyeEl.innerHTML = [
-      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 60" style="width:clamp(60px,12vw,120px);height:auto;filter:drop-shadow(0 0 8px #FFD700) drop-shadow(0 0 18px #FF8C00);margin-bottom:4px;">',
-      '  <defs>',
-      '    <linearGradient id="eyeGrad" x1="0%" y1="0%" x2="100%" y2="0%">',
-      '      <stop offset="0%" style="stop-color:#B8860B"/>',
-      '      <stop offset="50%" style="stop-color:#FFD700"/>',
-      '      <stop offset="100%" style="stop-color:#B8860B"/>',
-      '    </linearGradient>',
-      '  </defs>',
-      '  <path d="M10,30 Q30,4 60,4 Q90,4 110,30 Q90,56 60,56 Q30,56 10,30 Z" fill="url(#eyeGrad)" stroke="#000" stroke-width="2"/>',
-      '  <ellipse cx="60" cy="30" rx="24" ry="18" fill="#F8F0D0"/>',
-      '  <circle cx="60" cy="30" r="13" fill="#1a0800"/>',
-      '  <circle cx="60" cy="30" r="7" fill="#000"/>',
-      '  <circle cx="55" cy="25" r="3" fill="#FFD700" opacity="0.9"/>',
-      '  <line x1="60" y1="48" x2="60" y2="56" stroke="url(#eyeGrad)" stroke-width="2.5"/>',
-      '  <path d="M60,56 Q45,60 38,54 Q34,50 38,46" fill="none" stroke="url(#eyeGrad)" stroke-width="2.5" stroke-linecap="round"/>',
-      '  <path d="M60,56 Q70,58 72,52" fill="none" stroke="url(#eyeGrad)" stroke-width="2" stroke-linecap="round"/>',
-      '</svg>'
-    ].join('');
-    eyeEl.style.cssText = 'display:block;text-align:center;';
-    _fireLvlContainer.appendChild(eyeEl);
-
     _fireLvlTextEl = document.createElement('div');
     _fireLvlTextEl.textContent = 'LEVEL UP';
     _fireLvlTextEl.style.cssText = [
       'font-family:"Cinzel Decorative","Bangers","Impact","Arial Black",sans-serif',
-      'font-size:clamp(44px,9vw,88px)',
+      'font-size:clamp(22px,4.5vw,44px)',
       'font-weight:900',
       'letter-spacing:8px',
-      'color:#FFD700',
-      'text-shadow:0 0 14px #FF4500,0 0 30px #FF6600,0 0 55px #FF8C00,0 0 90px rgba(255,69,0,0.4),3px 3px 0 #000,-3px -3px 0 #000,3px -3px 0 #000,-3px 3px 0 #000',
+      'color:#FFFFFF',
+      'text-shadow:0 0 10px #00FFFF,0 0 20px #00CCFF,0 0 40px #0088FF',
       'white-space:nowrap',
       'line-height:1',
     ].join(';');
@@ -4358,14 +4335,15 @@
     _fireLvlContainer.style.display = 'flex';
     _fireLvlContainer.style.opacity = '0';
     _fireLvlContainer.style.transform = 'translate(-50%,-50%) scale(0) translateY(30px)';
-    _fireLvlTextEl.style.color = '#FFD700';
-    _fireLvlTextEl.style.textShadow = '0 0 14px #FF4500,0 0 30px #FF6600,0 0 55px #FF8C00,0 0 90px rgba(255,69,0,0.4),3px 3px 0 #000,-3px -3px 0 #000,3px -3px 0 #000,-3px 3px 0 #000';
+    _fireLvlTextEl.style.color = '#FFFFFF';
+    _fireLvlTextEl.style.filter = '';
+    _fireLvlTextEl.style.textShadow = '0 0 10px #00FFFF, 0 0 20px #00CCFF, 0 0 40px #0088FF';
 
     // Reset embers with randomized properties
     for (var i = 0; i < _FIRE_EMBER_COUNT; i++) {
       var em = _fireLvlEmbers[i];
       var size = 2 + Math.random() * 6;
-      var isAsh = Math.random() < 0.4;
+      var isAsh = true; // all particles are grey/white ash flecks
       em.el.style.width = size + 'px';
       em.el.style.height = (isAsh ? size * 0.5 : size) + 'px';
       em.el.style.background = isAsh ? '#999' : _fireLvlEmberColors[Math.floor(Math.random() * 4)];
@@ -4438,10 +4416,8 @@
         container.style.opacity = '1';
         var ashBlend = Math.max(0, (p - 0.5) / 0.5);
         if (ashBlend > 0) {
-          var r = Math.round(255 * (1 - ashBlend * 0.5));
-          var g = Math.round(215 * (1 - ashBlend * 0.6));
-          var b = Math.round(0 + ashBlend * 60);
-          el.style.color = 'rgb(' + r + ',' + g + ',' + b + ')';
+          var channelVal = Math.round(255 * (1 - ashBlend * 0.2));
+          el.style.color = 'rgb(' + channelVal + ',' + channelVal + ',' + channelVal + ')';
         }
       } else if (t < 1) {
         var p = (t - 0.72) / 0.28;
@@ -4450,9 +4426,10 @@
         var fadeOut = 1 - Math.pow(p, 1.5);
         container.style.transform = 'translate(-50%,calc(-50% + ' + yRise + 'px)) scale(' + scale + ')';
         container.style.opacity = '' + Math.max(0, fadeOut);
-        var gr = Math.round(160 + 50 * p);
+        el.style.filter = 'blur(' + (4 * p) + 'px)';
+        var gr = Math.round(200 + 55 * (1 - p));
         el.style.color = 'rgb(' + gr + ',' + gr + ',' + gr + ')';
-        el.style.textShadow = '0 0 ' + (8 + 20 * p) + 'px rgba(180,180,180,' + (0.5 * (1 - p)) + ')';
+        el.style.textShadow = '0 0 ' + (10 + 20 * p) + 'px rgba(180,220,255,' + (0.5 * (1 - p)) + ')';
       } else {
         _hideLevelUpFX();
         return;
