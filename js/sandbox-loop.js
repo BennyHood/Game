@@ -5630,13 +5630,13 @@
     if (avgFPS < FPS_VERY_LOW_THRESHOLD && tierIdx > 0) {
       // Very low FPS — drop two tiers at once for quick relief
       const newTier = _qualityTiers[Math.max(0, tierIdx - 2)];
-      console.log(`[Auto-Quality] FPS ${avgFPS.toFixed(1)} < ${FPS_VERY_LOW_THRESHOLD} — dropping to ${newTier}`);
+      // console.log(`[Auto-Quality] FPS ${avgFPS.toFixed(1)} < ${FPS_VERY_LOW_THRESHOLD} — dropping to ${newTier}`); // REMOVED: hot-path performance
       _applyGraphicsQuality(newTier);
       _showPerformanceNotification(`Performance mode: ${newTier.toUpperCase()}`);
     } else if (avgFPS < FPS_LOW_THRESHOLD && tierIdx > 0) {
       // Below target — drop one tier
       const newTier = _qualityTiers[tierIdx - 1];
-      console.log(`[Auto-Quality] FPS ${avgFPS.toFixed(1)} < ${FPS_LOW_THRESHOLD} — dropping to ${newTier}`);
+      // console.log(`[Auto-Quality] FPS ${avgFPS.toFixed(1)} < ${FPS_LOW_THRESHOLD} — dropping to ${newTier}`); // REMOVED: hot-path performance
       _applyGraphicsQuality(newTier);
       _showPerformanceNotification(`Performance mode: ${newTier.toUpperCase()}`);
     } else if (avgFPS >= FPS_HIGH_THRESHOLD && tierIdx < _qualityTiers.length - 1) {
@@ -5651,7 +5651,7 @@
       } catch (_) {}
       if (tierIdx < userTierIdx) {
         const newTier = _qualityTiers[tierIdx + 1];
-        console.log(`[Auto-Quality] FPS ${avgFPS.toFixed(1)} >= ${FPS_HIGH_THRESHOLD} — stepping up to ${newTier}`);
+        // console.log(`[Auto-Quality] FPS ${avgFPS.toFixed(1)} >= ${FPS_HIGH_THRESHOLD} — stepping up to ${newTier}`); // REMOVED: hot-path performance
         _applyGraphicsQuality(newTier);
       }
     }
@@ -7011,7 +7011,7 @@
         if (!this._x2Active) {
           this._x2Active = true;
           _showWaveNotification('🔫 NEW WEAPON! Enemy counts DOUBLED!', '#ffaa00', 3500);
-          console.log('[SeqWave] x2 multiplier activated (new weapon unlocked)');
+          // console.log('[SeqWave] x2 multiplier activated (new weapon unlocked)'); // REMOVED: hot-path performance
         }
       }
     },
@@ -7260,7 +7260,7 @@
             const _eAlive = _e && !_e.dead && (_e.alive === true || _e.alive === undefined);
             if (_eAlive && _mesh && !_mesh.visible && _mesh.position && _mesh.position.y > MIN_VISIBLE_Y_THRESHOLD) {
               _mesh.visible = true;
-              console.warn('[InvisibilityFix] Restored visibility for ' + _entry.type, _e);
+              // console.warn('[InvisibilityFix] Restored visibility for ' + _entry.type, _e); // REMOVED: hot-path performance
             }
           }
         }
@@ -7273,12 +7273,12 @@
             if (_star && _star.active && _star.mesh && _star.mesh.position && _star.mesh.position.y > MIN_VISIBLE_Y_THRESHOLD) {
               if (!_star.mesh.visible) {
                 _star.mesh.visible = true;
-                console.warn('[InvisibilityFix] Restored visibility for XP star', _star);
+                // console.warn('[InvisibilityFix] Restored visibility for XP star', _star); // REMOVED: hot-path performance
               }
               // Also restore if scale was accidentally zeroed out
               if (_star.mesh.scale.x < 0.001) {
                 _star.mesh.scale.set(1, 1, 1);
-                console.warn('[InvisibilityFix] Restored scale for XP star', _star);
+                // console.warn('[InvisibilityFix] Restored scale for XP star', _star); // REMOVED: hot-path performance
               }
             }
           }
