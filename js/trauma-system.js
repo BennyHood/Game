@@ -146,7 +146,8 @@
   function _initFleshChunks() {
     const geo = new THREE.BoxGeometry(0.08, 0.08, 0.08);
     const mat = new THREE.MeshStandardMaterial({
-      color: 0x8B0000,
+      color: 0xffffff,   // white base so per-instance color drives actual tint
+      vertexColors: true, // required for InstancedMesh instanceColor tinting
       roughness: 0.9,
       metalness: 0.0
     });
@@ -171,16 +172,20 @@
     _fleshRVZ = new Float32Array(MAX_FLESH_CHUNKS);
     _fleshLife = new Float32Array(MAX_FLESH_CHUNKS);
 
-    // Hide all instances initially
+    // Allocate instanceColor buffer and initialize every slot to dark-red default
+    _fleshChunkIM.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_FLESH_CHUNKS * 3), 3);
+    _fleshChunkIM.instanceColor.setUsage(THREE.DynamicDrawUsage);
+
+    // Hide all instances initially and set default color (dark red: 0x8B0000)
     for (let i = 0; i < MAX_FLESH_CHUNKS; i++) {
       _fleshPY[i] = -9999;
       _fleshLife[i] = 0;
       _tmpMatrix.makeTranslation(0, -9999, 0);
       _fleshChunkIM.setMatrixAt(i, _tmpMatrix);
+      _fleshChunkIM.instanceColor.setXYZ(i, 0x8B / 255, 0, 0);
     }
     _fleshChunkIM.instanceMatrix.needsUpdate = true;
-    _fleshChunkIM.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_FLESH_CHUNKS * 3), 3);
-    _fleshChunkIM.instanceColor.setUsage(THREE.DynamicDrawUsage);
+    _fleshChunkIM.instanceColor.needsUpdate = true;
   }
 
   function _initGuts() {
@@ -677,13 +682,15 @@
           ((color >> 16) & 0xff) / 255,
           ((color >>  8) & 0xff) / 255,
           ( color        & 0xff) / 255);
-        _fleshChunkIM.instanceColor.needsUpdate = true;
       }
     }
+    if (_fleshChunkIM.instanceColor) _fleshChunkIM.instanceColor.needsUpdate = true;
   }
 
   function startArterialPump(position, dirX, dirY, dirZ, color, duration) {
     if (!position) return;
+    var bloodColor = color || 0xcc1100;
+    var streamLife = (typeof duration === 'number' && duration > 0) ? duration : 6.0;
     if (window.BloodV2 && window.BloodV2.hit) {
       var fakeEnemy = {
         alive: true,
@@ -692,10 +699,18 @@
         hp: 1, maxHp: 1,
         mesh: { position: { x: position.x, y: position.y, z: position.z }, scale: { y: 1 } }
       };
+      // Pass caller's color via a temporary ENEMY_BLOOD override so the stream uses it
+      var _prevColor = null;
+      if (window.BloodV2.ENEMY_BLOOD) {
+        _prevColor = window.BloodV2.ENEMY_BLOOD['default'];
+        window.BloodV2.ENEMY_BLOOD['default'] = { base: bloodColor, dark: bloodColor, organ: bloodColor, mist: bloodColor };
+      }
       window.BloodV2.hit(fakeEnemy, ARTERIAL_PUMP_WEAPON_TYPE,
         { x: position.x, y: position.y + ARTERIAL_PUMP_Y_OFFSET, z: position.z },
         { x: dirX, y: dirY, z: dirZ });
+      if (_prevColor !== null) window.BloodV2.ENEMY_BLOOD['default'] = _prevColor;
     }
+    // Spawn a few guts at the wound site tinted with the caller's color
     spawnGuts(position, 3, { x: dirX * 0.15, y: Math.abs(dirY) * 0.2 + 0.15, z: dirZ * 0.15 });
   }
 
@@ -728,8 +743,14 @@
   function swordCleave(position, sliceAxisX, sliceAxisZ, enemyColor) {
     if (!position) return;
     var col = enemyColor || 0xcc1100;
-    var perpX = -sliceAxisZ || 1;
-    var perpZ = sliceAxisX || 0;
+    // Compute perpendicular to the slice axis, handling the (0,0) / undefined edge case
+    var axisX = (typeof sliceAxisX === 'number') ? sliceAxisX : 0;
+    var axisZ = (typeof sliceAxisZ === 'number') ? sliceAxisZ : 0;
+    if (axisX === 0 && axisZ === 0) { axisX = 1; axisZ = 0; }
+    var perpX = -axisZ;
+    var perpZ = axisX;
+    var perpLen = Math.sqrt(perpX * perpX + perpZ * perpZ);
+    if (perpLen > 0) { perpX /= perpLen; perpZ /= perpLen; } else { perpX = 0; perpZ = 1; }
     for (var half = 0; half < 2; half++) {
       var sign = (half === 0) ? 1 : -1;
       for (var j = 0; j < 3; j++) {

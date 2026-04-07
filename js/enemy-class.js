@@ -3508,13 +3508,18 @@
         }
 
         // TraumaSystem death gore
-        if (window.TraumaSystem) {
+        // Shotgun-family deaths already emit full TraumaSystem gore inside dieByShotgun(),
+        // so skip the generic shotgunBlast here to avoid double-spawning effects.
+        var _shotgunDeathHandledByMethod =
+          damageType === 'shotgun' ||
+          damageType === 'doubleBarrel' ||
+          damageType === 'pumpShotgun' ||
+          damageType === 'autoShotgun';
+        if (window.TraumaSystem && !_shotgunDeathHandledByMethod) {
           var _deathColor = _getEnemyBloodColor(this);
           var _deathPos = this.mesh ? this.mesh.position : null;
           if (_deathPos) {
-            if (damageType === 'shotgun' || damageType === 'doubleBarrel' || damageType === 'pumpShotgun' || damageType === 'autoShotgun') {
-              window.TraumaSystem.shotgunBlast({ x: _deathPos.x, y: _deathPos.y, z: _deathPos.z }, null, _deathColor);
-            } else if (damageType === 'meteor' || damageType === 'rocket' || damageType === 'grenade') {
+            if (damageType === 'meteor' || damageType === 'rocket' || damageType === 'grenade') {
               window.TraumaSystem.explosiveGib({ x: _deathPos.x, y: _deathPos.y, z: _deathPos.z }, _deathColor);
             }
           }

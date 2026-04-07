@@ -2175,7 +2175,9 @@ return oldest;
 }
 
 function _killDrop(d, im) {
-d.alive = false;
+d.alive      = false;
+d.isCloud    = false;
+d.expandRate = 0;
 _m4.makeScale(0.001, 0.001, 0.001);
 _m4.setPosition(-9999, -9999, -9999);
 if (im) im.setMatrixAt(d.idx, _m4);
