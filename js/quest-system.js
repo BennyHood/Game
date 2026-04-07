@@ -4771,8 +4771,10 @@
       if (uiLayer) uiLayer.style.visibility = 'hidden';
 
       // Hide main menu and gameover screen to prevent overlap with camp
-      document.getElementById('main-menu').style.display = 'none';
-      document.getElementById('gameover-screen').style.display = 'none';
+      const _mainMenuEl = document.getElementById('main-menu');
+      if (_mainMenuEl) _mainMenuEl.style.display = 'none';
+      const _gameoverEl = document.getElementById('gameover-screen');
+      if (_gameoverEl) _gameoverEl.style.display = 'none';
 
       // Apply 3D camp mode only when CampWorld and the renderer are actually available.
       // This preserves the 2D fallback UI (interactive building cards, pointer-events) if
@@ -4783,9 +4785,18 @@
       // edge-case where the let-scoped variable is not in scope here (e.g. init() partial failure).
       const _rendererRef = (typeof renderer !== 'undefined' ? renderer : null) || window.gameRenderer;
       const canUse3DCamp = !!(window.CampWorld && _rendererRef);
-      if (_campScreenEl) _campScreenEl.classList.toggle('camp-3d-mode', canUse3DCamp);
+      // Explicit add/remove used here for clarity.
+      if (_campScreenEl) {
+        if (canUse3DCamp) {
+          _campScreenEl.classList.add('camp-3d-mode');
+        } else {
+          _campScreenEl.classList.remove('camp-3d-mode');
+        }
+      }
       // When 3D camp is active, also directly hide the buildings section so there is no
       // flash of 2D cards before the CSS rule takes effect.
+      // When in 2D fallback mode, explicitly restore the buildings section so the
+      // 2D camp UI is visible (CampWorld/renderer unavailable).
       if (canUse3DCamp) {
         const _campBuildingsEl = document.getElementById('camp-buildings-section');
         if (_campBuildingsEl) _campBuildingsEl.style.display = 'none';
@@ -4793,6 +4804,10 @@
         // (It may have been hidden by a prior 2D-mode camp visit.)
         const _gameContainerEl = document.getElementById('game-container');
         if (_gameContainerEl) _gameContainerEl.style.display = 'block';
+      } else {
+        // 2D fallback: ensure buildings section is visible so the camp is not blank.
+        const _campBuildingsEl = document.getElementById('camp-buildings-section');
+        if (_campBuildingsEl) _campBuildingsEl.style.display = '';
       }
 
       // First-run tutorial hook: fire after current call stack (by then camp-screen is visible)
