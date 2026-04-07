@@ -26,29 +26,33 @@
 
   // Building layout (id → world position + label)
   const BUILDING_DEFS = [
-    { id: 'questMission',        x:  0,  z:  11,  label: 'Quest Hall',          icon: '📜' },
-    { id: 'skillTree',           x: -12,  z: -8,  label: 'Skill Tree',          icon: '🌳' },
-    { id: 'forge',               x:  12,  z: -8,  label: 'The Forge',           icon: '⚒️' },
-    { id: 'progressionHouse',    x:  14,  z:  0,  label: 'Progression House',   icon: '💪' },
-    { id: 'companionHouse',      x: -11,  z:  4,  label: 'Companion Home',      icon: '🏡' },
-    { id: 'trainingHall',        x:  11,  z:  4,  label: 'Training Hall',       icon: '🏋️' },
-    { id: 'achievementBuilding', x:  0,  z:-13,  label: 'Hall of Trophies',    icon: '🏆' },
-    { id: 'armory',              x: -8,  z: -12,  label: 'Armory',              icon: '⚔️' },
-    { id: 'inventory',           x:  8,  z: -12,  label: 'Inventory',           icon: '📦' },
-    { id: 'campBoard',           x: -3.5,z:  0,  label: 'Teleport Portal',     icon: '🌀' },
-    { id: 'codex',               x:  3.5,z:  0,  label: 'Codex',               icon: '📖' },
-    { id: 'specialAttacks',      x:  8,  z:  7,  label: 'Special Attacks',     icon: '⚡' },
-    { id: 'warehouse',           x: -8,  z:  7,  label: 'Warehouse',           icon: '🏪' },
-    { id: 'tavern',              x: -6,  z: 14,  label: 'Tavern',              icon: '🍺' },
-    { id: 'shop',                x:  6,  z: 14,  label: 'Shop',                icon: '🛒' },
-    { id: 'prestige',            x:  0,  z:-18,  label: 'Prestige Altar',      icon: '✨' },
-    { id: 'trashRecycle',        x: -11,  z: -2,  label: 'Trash & Recycle',     icon: '♻️' },
-    { id: 'tempShop',            x:  11,  z: -2,  label: 'Temp Shop',           icon: '🏪' },
-    { id: 'prismReliquary',      x: -7,  z:-18,  label: 'Prism Reliquary',     icon: '💎' },
-    { id: 'astralGateway',       x:  7,  z:-18,  label: 'Astral Gateway',      icon: '🌀' },
-    { id: 'accountBuilding',     x:  4,  z:-15,  label: 'Profile & Records',   icon: '👤' },
-    { id: 'shrine',              x:  0,  z: -6,  label: 'The Artifact Shrine', icon: '🏛️' },
-    { id: 'droppletShop',        x: -14, z:  0,  label: 'The Dropplet Shop',   icon: '💧' },
+    // Inner ring (close to fire) — core gameplay buildings
+    { id: 'questMission',        x:  0,    z:  10,  label: 'Quest Hall',          icon: '📜' },
+    { id: 'campBoard',           x: -4,    z:   3,  label: 'Teleport Portal',     icon: '🌀' },
+    { id: 'codex',               x:  4,    z:   3,  label: 'Codex',               icon: '📖' },
+    // Mid ring — progression & combat
+    { id: 'forge',               x: -12,   z:   2,  label: 'The Forge',           icon: '⚒️'  },
+    { id: 'armory',              x: -10,   z:  -8,  label: 'Armory',              icon: '⚔️'  },
+    { id: 'trainingHall',        x:  10,   z:  -8,  label: 'Training Hall',       icon: '🏋️' },
+    { id: 'progressionHouse',    x:  12,   z:   2,  label: 'Progression House',   icon: '💪' },
+    { id: 'skillTree',           x: -8,    z:  10,  label: 'Skill Tree',          icon: '🌳' },
+    { id: 'specialAttacks',      x:  8,    z:  10,  label: 'Special Attacks',     icon: '⚡' },
+    // Outer ring — social/economy/misc
+    { id: 'warehouse',           x:  0,    z: -14,  label: 'Warehouse',           icon: '🏪' },
+    { id: 'slotMachine',         x:  6,    z: -14,  label: '🎰 Slot Machine',     icon: '🎰' },
+    { id: 'tavern',              x: -8,    z:  16,  label: 'Tavern',              icon: '🍺' },
+    { id: 'shop',                x:  8,    z:  16,  label: 'Shop',                icon: '🛒' },
+    { id: 'inventory',           x:  14,   z:  -4,  label: 'Inventory',           icon: '📦' },
+    { id: 'companionHouse',      x: -14,   z:  -4,  label: 'Companion Home',      icon: '🏡' },
+    { id: 'achievementBuilding', x: -6,    z: -14,  label: 'Hall of Trophies',    icon: '🏆' },
+    { id: 'accountBuilding',     x:  3,    z: -10,  label: 'Profile & Records',   icon: '👤' },
+    { id: 'shrine',              x:  0,    z:  -6,  label: 'The Artifact Shrine', icon: '🏛️' },
+    { id: 'prismReliquary',      x: -10,   z: -16,  label: 'Prism Reliquary',     icon: '💎' },
+    { id: 'astralGateway',       x:  10,   z: -16,  label: 'Astral Gateway',      icon: '🌀' },
+    { id: 'droppletShop',        x: -14,   z:   8,  label: 'The Dropplet Shop',   icon: '💧' },
+    { id: 'tempShop',            x:  14,   z:   8,  label: 'Temp Shop',           icon: '🏪' },
+    { id: 'trashRecycle',        x: -14,   z: -12,  label: 'Trash & Recycle',     icon: '♻️' },
+    { id: 'prestige',            x:  0,    z: -20,  label: 'Prestige Altar',      icon: '✨' },
   ];
 
   // ──────────────────────────────────────────────────────────
@@ -2087,6 +2091,7 @@
       case 'codex':             return _buildCodexSign(def);
       case 'specialAttacks':     return _buildSpecialAttacksArena(def);
       case 'warehouse':          return _buildWarehouse(def);
+      case 'slotMachine':        return _buildSlotMachine(def);
       case 'tavern':             return _buildTavern(def);
       case 'shop':               return _buildShop(def);
       case 'prestige':           return _buildPrestigeAltar(def);
@@ -3137,6 +3142,48 @@
     grp.add(lLight);
 
     _addNameSign(grp, def.label, 0, 4.6, 0);
+    return grp;
+  }
+
+  // ── Slot Machine ─ neon gambling cabinet ─────────────────
+  function _buildSlotMachine(def) {
+    const THREE = T();
+    const grp = new THREE.Group();
+    grp.position.set(def.x, 0, def.z);
+
+    // Base platform
+    const baseGeo = new THREE.BoxGeometry(3.5, 0.2, 3.5);
+    grp.add(_mesh(baseGeo, _lambert(0x1a1a2e)));
+
+    // Cabinet body
+    const cabGeo = new THREE.BoxGeometry(2.5, 3.5, 2.2);
+    const cab = _mesh(cabGeo, _lambert(0x2d1b69));
+    cab.position.y = 1.95;
+    cab.castShadow = true;
+    grp.add(cab);
+
+    // Screen face (bright neon)
+    const screenGeo = new THREE.BoxGeometry(1.8, 1.4, 0.12);
+    const screen = _mesh(screenGeo, _mat(0xff44cc, 0xff44cc, 1.2));
+    screen.position.set(0, 2.4, 1.17);
+    grp.add(screen);
+
+    // Lever
+    const leverBaseGeo = new THREE.CylinderGeometry(0.08, 0.08, 1.0, 8);
+    const leverBase = _mesh(leverBaseGeo, _lambert(0xcccccc));
+    leverBase.position.set(1.4, 2.2, 0);
+    grp.add(leverBase);
+    const leverTopGeo = new THREE.SphereGeometry(0.18, 8, 8);
+    const leverTop = _mesh(leverTopGeo, _mat(0xff3300, 0xff3300, 0.8));
+    leverTop.position.set(1.4, 2.75, 0);
+    grp.add(leverTop);
+
+    // Neon glow light
+    const neonLight = new THREE.PointLight(0xff44cc, 1.2, 7, 2);
+    neonLight.position.set(0, 2.4, 1.5);
+    grp.add(neonLight);
+
+    _addNameSign(grp, def.label, 0, 4.8, 0);
     return grp;
   }
 
@@ -4689,6 +4736,14 @@
       }
       return;
     }
+    // Built-in Slot Machine interaction (no external callback needed)
+    if (_nearBuilding === 'slotMachine') {
+      _openMenu();
+      _playerVel.x = 0; _playerVel.z = 0;
+      _keys = {}; _touch.active = false;
+      _showSlotMachineUI();
+      return;
+    }
     const fn = _callbacks[_nearBuilding];
     if (typeof fn === 'function') {
       // Pause camp input while the building menu is open
@@ -4734,6 +4789,8 @@
     'wdr-overlay',
     // Advanced Clicker overlay
     'adv-clicker-overlay',
+    // Slot Machine overlay
+    'slot-machine-overlay',
   ];
   window._CAMP_OVERLAY_IDS = _OVERLAY_IDS;
 
@@ -6601,6 +6658,91 @@
 
   // Handle resize
   window.addEventListener('resize', onResize);
+
+  // ──────────────────────────────────────────────────────────
+  // Slot Machine UI
+  // ──────────────────────────────────────────────────────────
+  function _showSlotMachineUI() {
+    const sd = (typeof saveData !== 'undefined') ? saveData : (_saveData || null);
+    const coins = sd && sd.resources ? (sd.resources.slotCoins || 0) : 0;
+    const SYMBOLS = ['🍒', '🍋', '🔔', '⭐', '💎', '🎰'];
+
+    const overlay = document.createElement('div');
+    overlay.id = 'slot-machine-overlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.88);z-index:8500;display:flex;align-items:center;justify-content:center;';
+
+    const panel = document.createElement('div');
+    panel.style.cssText = 'background:#0d0d1a;border:2px solid #ff44cc;border-radius:10px;padding:24px;max-width:360px;width:90%;text-align:center;box-shadow:0 0 30px rgba(255,68,204,0.5);font-family:"Courier New",monospace;color:#fff;';
+
+    function _render() {
+      const currentCoins = sd && sd.resources ? (sd.resources.slotCoins || 0) : 0;
+      panel.innerHTML = `
+        <div style="font-size:2em;margin-bottom:4px;">🎰</div>
+        <div style="font-family:Bangers,cursive;font-size:22px;color:#ff44cc;letter-spacing:2px;margin-bottom:8px;">SLOT MACHINE</div>
+        <div style="font-size:13px;color:#aaa;margin-bottom:16px;">Cost: 1 🎰 Slot Coin | Reward: +5 Account XP</div>
+        <div style="font-size:13px;color:#ffcc44;margin-bottom:20px;">Your Slot Coins: <b>${currentCoins}</b></div>
+        <div id="slot-reels" style="font-size:2.5em;letter-spacing:12px;margin-bottom:20px;min-height:52px;">❓ ❓ ❓</div>
+        <div id="slot-result" style="font-size:13px;color:#aaa;min-height:20px;margin-bottom:16px;"></div>
+        <button id="slot-spin-btn" ${currentCoins < 1 ? 'disabled' : ''} style="${currentCoins < 1 ? 'font-size:15px;padding:10px 28px;background:#333;color:#666;border:2px solid #555;border-radius:5px;cursor:not-allowed;letter-spacing:1px;margin-right:8px;' : 'font-size:15px;padding:10px 28px;background:linear-gradient(to bottom,#8b00cc,#44007a);color:#fff;border:2px solid #ff44cc;border-radius:5px;cursor:pointer;letter-spacing:1px;margin-right:8px;'}">🎰 SPIN (1 Coin)</button>
+        <button id="slot-close-btn" style="font-size:13px;padding:10px 20px;background:rgba(30,30,30,0.9);color:#888;border:1px solid #555;border-radius:5px;cursor:pointer;">Close</button>
+      `;
+      panel.querySelector('#slot-close-btn').onclick = function () {
+        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        _menuOpen = false;
+        document.body.classList.remove('camp-menu-open');
+      };
+      const spinBtn = panel.querySelector('#slot-spin-btn');
+      if (spinBtn && !spinBtn.disabled) {
+        spinBtn.onclick = function () {
+          if (!sd || !sd.resources || (sd.resources.slotCoins || 0) < 1) {
+            if (typeof showStatusMessage === 'function') showStatusMessage('Need 1 Slot Coin to play!', 2000);
+            return;
+          }
+          sd.resources.slotCoins = (sd.resources.slotCoins || 0) - 1;
+          if (typeof showStatChange === 'function') showStatChange('−1 🎰 Slot Coin', 'rare');
+          // Grant 5 Account XP always
+          if (typeof addAccountXP === 'function') addAccountXP(5);
+          else if (typeof window.addAccountXP === 'function') window.addAccountXP(5);
+          else if (sd) { sd.accountXP = (sd.accountXP || 0) + 5; }
+          if (typeof showStatChange === 'function') showStatChange('+5 Account XP', 'epic');
+          if (typeof saveSaveData === 'function') saveSaveData();
+          // Animate reels
+          const reels = panel.querySelector('#slot-reels');
+          const result = panel.querySelector('#slot-result');
+          spinBtn.disabled = true;
+          let ticks = 0;
+          const totalTicks = 18;
+          const interval = setInterval(function () {
+            const r1 = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
+            const r2 = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
+            const r3 = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
+            reels.textContent = r1 + ' ' + r2 + ' ' + r3;
+            ticks++;
+            if (ticks >= totalTicks) {
+              clearInterval(interval);
+              const allMatch = r1 === r2 && r2 === r3;
+              if (allMatch) {
+                result.style.color = '#ffcc00';
+                result.textContent = '🎉 JACKPOT! Bonus: +20 Account XP!';
+                if (typeof addAccountXP === 'function') addAccountXP(20);
+                else if (typeof window.addAccountXP === 'function') window.addAccountXP(20);
+                else if (sd) { sd.accountXP = (sd.accountXP || 0) + 20; }
+                if (typeof saveSaveData === 'function') saveSaveData();
+              } else {
+                result.style.color = '#aaa';
+                result.textContent = '+5 Account XP awarded.';
+              }
+              _render();
+            }
+          }, 80);
+        };
+      }
+    }
+
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    _render();
+  }
 
   // ──────────────────────────────────────────────────────────
   // Expose public API

@@ -5710,6 +5710,68 @@
     _applyGraphicsQuality(_savedQuality);
   }
 
+  // ─── Gathering Nodes (trees & rocks) for the sandbox arena ───────────────────
+  function _spawnGatheringNodes() {
+    if (!window.destructibleProps) window.destructibleProps = [];
+    const TREE_COUNT = 8, ROCK_COUNT = 6;
+    const ARENA_R = 28;
+    const THREE = window.THREE;
+    if (!THREE || !scene) return;
+
+    function _makeNode(type, x, z) {
+      var mesh, hp, maxHp;
+      if (type === 'tree') {
+        var grp = new THREE.Group();
+        var trunkGeo = new THREE.CylinderGeometry(0.3, 0.4, 3, 8);
+        var trunk = new THREE.Mesh(trunkGeo, new THREE.MeshToonMaterial({ color: 0x8B4513 }));
+        trunk.position.y = 1.5;
+        trunk.castShadow = true;
+        var leavesGeo = new THREE.SphereGeometry(1.5, 8, 8);
+        var leaves = new THREE.Mesh(leavesGeo, new THREE.MeshToonMaterial({ color: 0x228B22 }));
+        leaves.position.y = 3.5;
+        leaves.castShadow = true;
+        grp.add(trunk);
+        grp.add(leaves);
+        grp.position.set(x, 0, z);
+        grp.userData.trunk = trunk;
+        grp.userData.leaves = leaves;
+        grp.userData.swayPhase = Math.random() * Math.PI * 2;
+        grp.userData.swaySpeed = 0.5 + Math.random() * 0.5;
+        grp.userData.swayAmount = 0.05 + Math.random() * 0.05;
+        scene.add(grp);
+        mesh = grp; hp = 50; maxHp = 50;
+      } else {
+        var rGeo = new THREE.DodecahedronGeometry(0.8, 0);
+        var rMat = new THREE.MeshToonMaterial({ color: 0x888888 });
+        var rock = new THREE.Mesh(rGeo, rMat);
+        rock.position.set(x, 0.5, z);
+        rock.castShadow = true;
+        rock.rotation.set(Math.random(), Math.random(), Math.random());
+        scene.add(rock);
+        mesh = rock; hp = 40; maxHp = 40;
+      }
+      return {
+        type: type, mesh: mesh, hp: hp, maxHp: maxHp, destroyed: false,
+        originalPosition: mesh.position.clone(),
+        originalScale: mesh.scale.clone(),
+        originalColor: type === 'tree'
+          ? { trunk: mesh.userData.trunk.material.color.clone(), leaves: mesh.userData.leaves.material.color.clone() }
+          : mesh.material.color.clone()
+      };
+    }
+
+    for (var i = 0; i < TREE_COUNT; i++) {
+      var angle = (i / TREE_COUNT) * Math.PI * 2;
+      var r = ARENA_R * (0.6 + Math.random() * 0.35);
+      window.destructibleProps.push(_makeNode('tree', Math.cos(angle) * r, Math.sin(angle) * r));
+    }
+    for (var j = 0; j < ROCK_COUNT; j++) {
+      var rAngle = (j / ROCK_COUNT) * Math.PI * 2 + 0.5;
+      var rr = ARENA_R * (0.55 + Math.random() * 0.35);
+      window.destructibleProps.push(_makeNode('rock', Math.cos(rAngle) * rr, Math.sin(rAngle) * rr));
+    }
+  }
+
   // ─── Graphics Quality presets ─────────────────────────────────────────────────
   // Maps quality key → renderer configuration.
   // Called once at boot (from saved preference) and dynamically when user changes.
@@ -7856,6 +7918,9 @@
       console.log('[🎮 SandboxLoop] Initializing Three.js scene...');
       _initScene();
       console.log('[🎮 SandboxLoop] ✓ Scene initialized');
+
+      // Spawn gathering nodes (trees + rocks) around the arena perimeter
+      _spawnGatheringNodes();
 
       console.log('[🎮 SandboxLoop] Initializing ground (Engine2Sandbox)...');
       _initGround();

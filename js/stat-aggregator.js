@@ -264,6 +264,40 @@
       if (bldgs.skillTree && bldgs.skillTree.level > 0) {
         stats.bonusSkillPoints = (stats.bonusSkillPoints || 0) + bldgs.skillTree.level;
       }
+
+      // Tavern: +0.1 HP regen per second per level
+      if (bldgs.tavern && bldgs.tavern.level > 0) {
+        var tavLvl = bldgs.tavern.level;
+        stats.hpRegenPerSecond = (stats.hpRegenPerSecond || 0) + 0.1 * tavLvl;
+        stats.hpRegen          = (stats.hpRegen          || 0) + 0.1 * tavLvl;
+      }
+
+      // Prism Reliquary: +0.03 crit chance and +0.15 crit damage per level
+      if (bldgs.prismReliquary && bldgs.prismReliquary.level > 0) {
+        var prLvl = bldgs.prismReliquary.level;
+        stats.critChance  = (stats.critChance  || 0.05) + 0.03 * prLvl;
+        stats.critDmg     = (stats.critDmg     || 1.5)  + 0.15 * prLvl;
+      }
+
+      // Progression House: +5% XP gain per level
+      if (bldgs.progressionHouse && bldgs.progressionHouse.level > 0) {
+        var phLvl = bldgs.progressionHouse.level;
+        stats.xpMultiplier = (stats.xpMultiplier || 1.0) + 0.05 * phLvl;
+        stats.expGainBonus = (stats.expGainBonus || 0)   + 0.05 * phLvl;
+      }
+
+      // Slot Machine building: +1% luck/dropRate per level
+      if (bldgs.slotMachine && bldgs.slotMachine.level > 0) {
+        var smLvl = bldgs.slotMachine.level;
+        var slotBonus = 0.01 * smLvl;
+        // Apply to canonical runtime stats so the bonus affects gameplay systems.
+        stats.luck         = (stats.luck         || 0)   + slotBonus;
+        stats.dropRate     = (stats.dropRate     || 1.0) + slotBonus;
+        stats.itemDropRate = (stats.itemDropRate || 1.0) + slotBonus;
+        // Preserve legacy/bridge fields for compatibility with any older readers.
+        stats.luckBonus    = (stats.luckBonus    || 0)   + slotBonus;
+        stats.dropRateMult = (stats.dropRateMult || 1.0) + slotBonus;
+      }
     }
 
     // ── 3. Permanent Upgrade Shop bonuses (saveData.upgrades) ────────────────
