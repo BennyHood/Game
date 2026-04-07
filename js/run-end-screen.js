@@ -808,8 +808,8 @@ window.RunEndScreen = (function () {
       window._pendingAIDADialogueOnCamp = true;
     }
     setTimeout(function () {
-      if (typeof _showCamp === 'function') {
-        _showCamp();
+      if (typeof showCamp === 'function') {
+        showCamp();
       } else if (typeof showCampScreen === 'function') {
         showCampScreen();
       } else if (typeof returnToLobby === 'function') {
