@@ -484,15 +484,19 @@
             this._dying    = true;
             this._dieTimer = 0;
             this._dieDir   = null;
-            // 3C: Spawn flesh chunks on death
+            // 3C: Spawn death gore via GoreSim public API (avoids internal _spawnChunks helper)
             try {
                 var pos = this.parts.root.position;
-                if (pos && window.GoreSim) {
-                    var fleshColors = [0xCC2211, 0x8B1111, 0xAA1100];
-                    var count = 6 + Math.floor(Math.random() * 3);
-                    for (var i = 0; i < count; i++) {
-                        window.GoreSim._spawnChunks(pos, null, 1, { bloodVelocity: { max: 8 } }, fleshColors[i % fleshColors.length]);
-                    }
+                if (pos && window.GoreSim && typeof window.GoreSim.onKill === 'function') {
+                    // Build a minimal enemy proxy — onKill only needs mesh.position and
+                    // optional enemyType (for chunk color selection in _killExplosion).
+                    var _killProxy = {
+                        mesh: { position: pos.clone() },
+                        enemyType: 'skinwalker',
+                        id: null,
+                        uuid: null
+                    };
+                    window.GoreSim.onKill(_killProxy, 'shotgun', null);
                 }
             } catch(e) {}
             return;

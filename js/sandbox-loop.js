@@ -412,6 +412,7 @@
   let _activeSkinwalkers = [];     // live list of active skinwalker enemies
   let _projPool = [];              // reusable projectile objects
   let _projPoolGeo = null;         // shared geometry for pool slots (set once in _buildProjectilePool)
+  let _projPoolNextIdx = 0;        // ring-cursor for O(1) free-slot lookup (avoids full-array scan)
   let _activeProjList = [];        // currently flying projectiles
   let _animateErrorShown = false;  // prevent spamming error display every frame
   // EXP gem object pool (pre-allocated ExpGem instances, no new THREE.Mesh during gameplay)
@@ -1199,17 +1200,41 @@
     }
   }
 
+  // Hard cap: pool never grows beyond this; when full the oldest active projectile is recycled.
+  const _PROJ_POOL_MAX = 120;
   function _fireProjectile(fromX, fromZ, toX, toZ, weaponKey, weaponDmg, explosionRadius) {
-    let p = _projPool.find(function (o) { return !o.active; });
+    // Ring-index scan: start from where we left off to keep per-shot cost O(1) amortised.
+    let p = null;
+    const len = _projPool.length;
+    for (let _scan = 0; _scan < len; _scan++) {
+      const idx = (_projPoolNextIdx + _scan) % len;
+      if (!_projPool[idx].active) {
+        p = _projPool[idx];
+        _projPoolNextIdx = (idx + 1) % len;
+        break;
+      }
+    }
     if (!p) {
-      const geo = _projPoolGeo || new THREE.SphereGeometry(0.065, 5, 5);
-      const mat = new THREE.MeshBasicMaterial({ color: 0xFFFFAA });
-      const m = new THREE.Mesh(geo, mat);
-      m.visible = false;
-      scene.add(m);
-      const slot = { mesh: m, mat: mat, active: false, vx: 0, vz: 0, distSq: 0, ox: 0, oz: 0, weaponKey: 'gun', weaponDmg: 0, explosionRadius: 0 };
-      _projPool.push(slot);
-      p = slot;
+      if (len < _PROJ_POOL_MAX) {
+        // Expand pool up to hard cap
+        const geo = _projPoolGeo || new THREE.SphereGeometry(0.065, 5, 5);
+        const mat = new THREE.MeshBasicMaterial({ color: 0xFFFFAA });
+        const m = new THREE.Mesh(geo, mat);
+        m.visible = false;
+        scene.add(m);
+        const slot = { mesh: m, mat: mat, active: false, vx: 0, vz: 0, distSq: 0, ox: 0, oz: 0, weaponKey: 'gun', weaponDmg: 0, explosionRadius: 0 };
+        _projPool.push(slot);
+        p = slot;
+        _projPoolNextIdx = 0; // reset cursor after growth
+      } else {
+        // Pool at hard cap — recycle the oldest active projectile (ring position = _projPoolNextIdx)
+        p = _projPool[_projPoolNextIdx % len];
+        if (p.mesh) p.mesh.visible = false;
+        p.active = false;
+        const _staleIdx = _activeProjList.indexOf(p);
+        if (_staleIdx !== -1) _activeProjList.splice(_staleIdx, 1);
+        _projPoolNextIdx = (_projPoolNextIdx + 1) % len;
+      }
     }
     const dx = toX - fromX, dz = toZ - fromZ;
     const len = Math.sqrt(dx * dx + dz * dz) || 1;
@@ -1566,6 +1591,8 @@
   }
 
   function _deactivateSlime(slot) {
+    // Remove any skin flaps before pooling — prevents accumulation across reuses
+    _removeSkinFlaps(slot);
     // Hide all pre-allocated splatter meshes (pooled — no dispose needed)
     slot.splatIndex = 0;
     if (slot.splatPool) {
@@ -1950,6 +1977,8 @@
   }
 
   function _killSlime(slot, hitForce, killVX, killVZ, weaponKey) {
+    // Remove any skin flaps before kill FX so they don't persist on the corpse mesh
+    _removeSkinFlaps(slot);
     const x = slot.mesh.position.x;
     const y = slot.mesh.position.y + 0.4; // center of body
     const z = slot.mesh.position.z;
@@ -2233,6 +2262,8 @@
   }
 
   function _killCrawler(crawler, hitForce, killVX, killVZ, weaponKey) {
+    // Remove any skin flaps before kill FX
+    _removeSkinFlaps(crawler);
     const x = crawler.mesh.position.x;
     const y = 0.4;
     const z = crawler.mesh.position.z;
@@ -2551,6 +2582,8 @@
   /** Kill a leaping slime, spawn loot and effects. */
   function _killLeapingSlime(enemy, hitForce, killVX, killVZ, weaponKey) {
     if (!enemy || enemy.dead) return;
+    // Remove any skin flaps before kill FX
+    _removeSkinFlaps(enemy);
     const x = enemy.mesh.position.x;
     const y = enemy.mesh.position.y + enemy.size;
     const z = enemy.mesh.position.z;
@@ -3175,11 +3208,29 @@
   // Created lazily once on first shockwave, reused for all subsequent skin flaps.
   let _skinFlapGeo = null;
 
+  // Removes all skin-flap child meshes from enemy.mesh and disposes their materials.
+  // Must be called from every deactivation/kill path to prevent accumulation on pooled enemies.
+  function _removeSkinFlaps(enemy) {
+    if (!enemy || !enemy.mesh) return;
+    try {
+      for (let _rfi = enemy.mesh.children.length - 1; _rfi >= 0; _rfi--) {
+        const _ch = enemy.mesh.children[_rfi];
+        if (_ch && _ch.userData && _ch.userData.isSkinFlap) {
+          enemy.mesh.remove(_ch);
+          if (_ch.material) _ch.material.dispose();
+        }
+      }
+      enemy.isSkinned = false;
+    } catch(_rfe) { /* visual-only — suppress */ }
+  }
+
   // Spawns 2-4 skin-flap PlaneGeometry meshes as children of enemy.mesh.
   // origColor is the hex color of the skin flap (typically e._originalColor).
   // All errors are silently suppressed — this is a visual-only effect.
   function _spawnSkinFlaps(enemy, origColor) {
     if (!enemy || !enemy.mesh) return;
+    // Remove any existing flaps first (e.g. double shockwave hit)
+    _removeSkinFlaps(enemy);
     try {
       if (!_skinFlapGeo) _skinFlapGeo = new THREE.PlaneGeometry(0.06, 0.06);
       const flapCount = 2 + Math.floor(Math.random() * 3);
@@ -3188,6 +3239,7 @@
           color: origColor, side: THREE.DoubleSide, transparent: true, opacity: 0.85
         });
         const flap = new THREE.Mesh(_skinFlapGeo, flapMat);
+        flap.userData.isSkinFlap = true; // tag for cleanup
         flap.position.set(
           (Math.random() - 0.5) * 0.3,
           (Math.random() - 0.5) * 0.3,
