@@ -583,6 +583,10 @@
   // ─── Helpers ─────────────────────────────────────────────────────────────────
   function _lerp(a, b, t) { return a + (b - a) * t; }
   function _clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+  /** Normalise an angle delta to the shortest arc in [-π, π]. */
+  function _shortestArc(delta) {
+    return ((delta + Math.PI) % (Math.PI * 2) + (Math.PI * 2)) % (Math.PI * 2) - Math.PI;
+  }
 
   // ─── Eye of Horus Notification Shrine ────────────────────────────────────────
   // Permanent widget fixed at top-center. Crown is always visible; curtain
@@ -1237,9 +1241,9 @@
       }
     }
     const dx = toX - fromX, dz = toZ - fromZ;
-    const len = Math.sqrt(dx * dx + dz * dz) || 1;
-    p.vx = (dx / len) * PROJECTILE_SPEED;
-    p.vz = (dz / len) * PROJECTILE_SPEED;
+    const _dist = Math.sqrt(dx * dx + dz * dz) || 1;
+    p.vx = (dx / _dist) * PROJECTILE_SPEED;
+    p.vz = (dz / _dist) * PROJECTILE_SPEED;
     p.ox = fromX;
     p.oz = fromZ;
     p.distSq = 0;
@@ -5339,9 +5343,10 @@
       window._acquireFlash(scene, DEFAULT_FLASH_COLOR, DEFAULT_FLASH_INTENSITY, DEFAULT_FLASH_RADIUS, _tmpV3, DEFAULT_FLASH_DURATION_MS);
     }
 
-    // Align the player mesh to the actual firing angle immediately.
-    // Continuous smoothing should be handled by the per-frame aim update, not per shot.
-    player.mesh.rotation.y = Math.atan2(tx - px, tz - pz);
+    // Smoothly rotate toward the firing angle using shortest-arc interpolation so the
+    // player never spins the long way when rotation.y crosses the -π/π boundary.
+    const targetYaw = Math.atan2(tx - px, tz - pz);
+    player.mesh.rotation.y += _shortestArc(targetYaw - player.mesh.rotation.y) * 0.35;
 
     // Update gun model position/rotation (if attached)
     _updateGunModel(tx, tz);
@@ -6407,7 +6412,10 @@
       _playerBounceTime += dt * 8.5;
       const bounceY = Math.abs(Math.sin(_playerBounceTime)) * 0.12;
       const squishX = 1 + Math.abs(Math.sin(_playerBounceTime)) * 0.08;
-      if (!_spawnIntroActive) player.mesh.position.y = 0.5 + bounceY;
+      // Only write position.y when the fluid sloshing system is NOT active — the fluid
+      // system in player-class.js manages vertical offset via _fluidOffsetY and positions
+      // _innerFluid relative to mesh.position.y.  Overwriting it here causes stutter.
+      if (!_spawnIntroActive && !player._innerFluid) player.mesh.position.y = 0.5 + bounceY;
       if (!player.currentScaleXZ) {
         player.mesh.scale.x = squishX;
         player.mesh.scale.z = squishX;
@@ -6419,7 +6427,8 @@
       // Smooth return to upright
       player.mesh.rotation.z = _lerp(player.mesh.rotation.z, 0, 0.09);
       player.mesh.rotation.x = _lerp(player.mesh.rotation.x, 0, 0.09);
-      if (!_spawnIntroActive) player.mesh.position.y = _lerp(player.mesh.position.y, 0.5, 0.1);
+      // Guard: let the fluid system own mesh.position.y when _innerFluid is active
+      if (!_spawnIntroActive && !player._innerFluid) player.mesh.position.y = _lerp(player.mesh.position.y, 0.5, 0.1);
       // Idle gentle wobble
       _playerIdleTime += dt;
       const idleWobble = Math.sin(_playerIdleTime * 2.2) * 0.025;
@@ -6434,13 +6443,15 @@
     // ── Continuous 360° smooth aim rotation ────────────────────────────────────
     // Update player facing direction every frame so the model follows the right
     // joystick (or mouse) even when not actively firing.
+    // _shortestArc() normalises the delta to [-π, π] so we always take the short
+    // path and never spin the wrong way at the -π/π boundary.
     const px2 = player.mesh.position.x, pz2 = player.mesh.position.z;
     if (_aimJoy.active && (_aimJoy.dx !== 0 || _aimJoy.dz !== 0)) {
       const aimAngle = Math.atan2(_aimJoy.dx, _aimJoy.dz);
-      player.mesh.rotation.y = _lerp(player.mesh.rotation.y, aimAngle, 0.25);
+      player.mesh.rotation.y += _shortestArc(aimAngle - player.mesh.rotation.y) * 0.25;
     } else if (_mouse && (_mouse.worldX !== 0 || _mouse.worldZ !== 0)) {
       const mAngle = Math.atan2(_mouse.worldX - px2, _mouse.worldZ - pz2);
-      player.mesh.rotation.y = _lerp(player.mesh.rotation.y, mAngle, 0.25);
+      player.mesh.rotation.y += _shortestArc(mAngle - player.mesh.rotation.y) * 0.25;
     }
 
     // Camera follow — reuse _camTarget to avoid per-frame Vector3 allocation
@@ -7885,6 +7896,18 @@
     if (_ready) return;
     _ready = true;
 
+    // Failsafe: if boot takes > 10 s (silent error, missing dep, etc.) force-clear the
+    // loading screen so the UI never hard-locks.  Cancelled below once boot succeeds.
+    const _bootFailsafeTimer = setTimeout(function () {
+      if (typeof _showError === 'function') {
+        _showError('Boot timed out');
+      }
+      const _fls = document.getElementById('loading-screen');
+      if (_fls) { _fls.style.opacity = '0'; _fls.style.pointerEvents = 'none'; _fls.style.display = 'none'; }
+      window.gameModuleReadyTimedOut = true;
+      console.warn('[SandboxLoop] ⚠ Boot failsafe triggered — loading screen force-cleared after 10 s.');
+    }, 10000);
+
     console.log('[🎮 SandboxLoop] Starting Sandbox 2.0 boot sequence...');
 
     // Bug 1 fix: set sandbox mode flag BEFORE any init calls so world-gen.js
@@ -8069,6 +8092,7 @@
       console.log('[🎮 SandboxLoop] ✓ Animation loop started');
       // Signal loading.js that the game module is ready so the loading screen
       // fades out and routes to the camp / main-menu screen.
+      clearTimeout(_bootFailsafeTimer); // boot succeeded — cancel the failsafe timer
       window.gameModuleReady = true;
       console.log('[🎮 SandboxLoop] ════════════════════════════════════════════');
       console.log('[🎮 SandboxLoop] 🎉 ENGINE 2.0 SANDBOX READY!');
@@ -8081,6 +8105,7 @@
       console.log('[🎮 SandboxLoop] ════════════════════════════════════════════');
       console.log('[GORE PATCH v1 REALISTIC] Applied successfully');
     } catch (e) {
+      clearTimeout(_bootFailsafeTimer);
       _showError('Boot error: ' + (e && e.message ? e.message : String(e)));
       console.error('[SandboxLoop] _boot error:', e);
       // Failsafe: ensure the loading screen is always dismissed even on crash
