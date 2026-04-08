@@ -1237,9 +1237,9 @@
       }
     }
     const dx = toX - fromX, dz = toZ - fromZ;
-    const len = Math.sqrt(dx * dx + dz * dz) || 1;
-    p.vx = (dx / len) * PROJECTILE_SPEED;
-    p.vz = (dz / len) * PROJECTILE_SPEED;
+    const _dist = Math.sqrt(dx * dx + dz * dz) || 1;
+    p.vx = (dx / _dist) * PROJECTILE_SPEED;
+    p.vz = (dz / _dist) * PROJECTILE_SPEED;
     p.ox = fromX;
     p.oz = fromZ;
     p.distSq = 0;
