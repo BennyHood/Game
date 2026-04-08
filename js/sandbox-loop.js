@@ -5339,9 +5339,9 @@
       window._acquireFlash(scene, DEFAULT_FLASH_COLOR, DEFAULT_FLASH_INTENSITY, DEFAULT_FLASH_RADIUS, _tmpV3, DEFAULT_FLASH_DURATION_MS);
     }
 
-    // Align the player mesh to the actual firing angle immediately.
-    // Continuous smoothing should be handled by the per-frame aim update, not per shot.
-    player.mesh.rotation.y = Math.atan2(tx - px, tz - pz);
+    // Smoothly rotate toward the firing angle — lerp so fluid sloshing isn't disrupted
+    // by a hard snap.  The per-frame aim-update in _movePlayer() will maintain the heading.
+    player.mesh.rotation.y = _lerp(player.mesh.rotation.y, Math.atan2(tx - px, tz - pz), 0.35);
 
     // Update gun model position/rotation (if attached)
     _updateGunModel(tx, tz);
@@ -6407,7 +6407,10 @@
       _playerBounceTime += dt * 8.5;
       const bounceY = Math.abs(Math.sin(_playerBounceTime)) * 0.12;
       const squishX = 1 + Math.abs(Math.sin(_playerBounceTime)) * 0.08;
-      if (!_spawnIntroActive) player.mesh.position.y = 0.5 + bounceY;
+      // Only write position.y when the fluid sloshing system is NOT active — the fluid
+      // system in player-class.js manages vertical offset via _fluidOffsetY and positions
+      // _innerFluid relative to mesh.position.y.  Overwriting it here causes stutter.
+      if (!_spawnIntroActive && !player._innerFluid) player.mesh.position.y = 0.5 + bounceY;
       if (!player.currentScaleXZ) {
         player.mesh.scale.x = squishX;
         player.mesh.scale.z = squishX;
@@ -6419,7 +6422,8 @@
       // Smooth return to upright
       player.mesh.rotation.z = _lerp(player.mesh.rotation.z, 0, 0.09);
       player.mesh.rotation.x = _lerp(player.mesh.rotation.x, 0, 0.09);
-      if (!_spawnIntroActive) player.mesh.position.y = _lerp(player.mesh.position.y, 0.5, 0.1);
+      // Guard: let the fluid system own mesh.position.y when _innerFluid is active
+      if (!_spawnIntroActive && !player._innerFluid) player.mesh.position.y = _lerp(player.mesh.position.y, 0.5, 0.1);
       // Idle gentle wobble
       _playerIdleTime += dt;
       const idleWobble = Math.sin(_playerIdleTime * 2.2) * 0.025;
@@ -7885,6 +7889,15 @@
     if (_ready) return;
     _ready = true;
 
+    // Failsafe: if boot takes > 10 s (silent error, missing dep, etc.) force-clear the
+    // loading screen so the UI never hard-locks.  Cancelled below once boot succeeds.
+    var _bootFailsafeTimer = setTimeout(function () {
+      var _fls = document.getElementById('loading-screen');
+      if (_fls) { _fls.style.opacity = '0'; _fls.style.pointerEvents = 'none'; _fls.style.display = 'none'; }
+      window.gameModuleReady = true;
+      console.warn('[SandboxLoop] ⚠ Boot failsafe triggered — loading screen force-cleared after 10 s.');
+    }, 10000);
+
     console.log('[🎮 SandboxLoop] Starting Sandbox 2.0 boot sequence...');
 
     // Bug 1 fix: set sandbox mode flag BEFORE any init calls so world-gen.js
@@ -8069,6 +8082,7 @@
       console.log('[🎮 SandboxLoop] ✓ Animation loop started');
       // Signal loading.js that the game module is ready so the loading screen
       // fades out and routes to the camp / main-menu screen.
+      clearTimeout(_bootFailsafeTimer); // boot succeeded — cancel the failsafe timer
       window.gameModuleReady = true;
       console.log('[🎮 SandboxLoop] ════════════════════════════════════════════');
       console.log('[🎮 SandboxLoop] 🎉 ENGINE 2.0 SANDBOX READY!');
@@ -8081,6 +8095,7 @@
       console.log('[🎮 SandboxLoop] ════════════════════════════════════════════');
       console.log('[GORE PATCH v1 REALISTIC] Applied successfully');
     } catch (e) {
+      clearTimeout(_bootFailsafeTimer);
       _showError('Boot error: ' + (e && e.message ? e.message : String(e)));
       console.error('[SandboxLoop] _boot error:', e);
       // Failsafe: ensure the loading screen is always dismissed even on crash
