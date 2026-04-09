@@ -2160,8 +2160,6 @@
           // Use window.gameOver to avoid calling the local boolean shadow
           if (typeof window.gameOver === 'function') {
             window.gameOver();
-          } else if (typeof gameOver === 'function') {
-            gameOver(); // fallback (should not be reached in normal play)
           }
         }
       }

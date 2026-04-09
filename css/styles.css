@@ -6288,13 +6288,21 @@
       margin: 0 auto 8px auto !important;
     }
 
-    /* Small utility icon buttons — Menu (top-left) + Profile (top-right) */
+    /* Small utility icon — Menu (top-left) */
     #camp-util-icons {
       position: fixed;
       top: max(10px, env(safe-area-inset-top));
       left: max(10px, env(safe-area-inset-left));
       display: flex;
-      gap: 8px;
+      z-index: 61;
+      pointer-events: auto;
+    }
+    /* Profile icon — top-right */
+    #camp-util-icons-right {
+      position: fixed;
+      top: max(10px, env(safe-area-inset-top));
+      right: max(10px, env(safe-area-inset-right));
+      display: flex;
       z-index: 61;
       pointer-events: auto;
     }
@@ -6409,6 +6417,12 @@
     #camp-screen.camp-subsection-active > .camp-header-btns {
       display: none !important;
     }
+    /* Also hide utility corner icons while a subsection is open */
+    .camp-subsection-active #camp-util-icons,
+    .camp-subsection-active #camp-util-icons-right {
+      display: none;
+      pointer-events: none;
+    }
 
     /* ── 3D Camp World Mode ─────────────────────────────────────────────
        When CampWorld is active the camp-screen becomes a transparent HUD
@@ -6443,7 +6457,8 @@
       z-index: 60;
     }
     /* Utility icons also float in 3D mode */
-    #camp-screen.camp-3d-mode #camp-util-icons {
+    #camp-screen.camp-3d-mode #camp-util-icons,
+    #camp-screen.camp-3d-mode #camp-util-icons-right {
       z-index: 62;
       pointer-events: auto;
     }
