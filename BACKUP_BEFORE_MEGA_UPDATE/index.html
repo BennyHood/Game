@@ -195,19 +195,11 @@
       <div id="account-level-progress-text" style="font-size:10px;color:#aaa;">0 / 100 XP</div>
     </div>
 
-    <!-- Small utility icons: Menu (top-left) + Profile (top-right) -->
-    <div id="camp-util-icons">
-      <button class="camp-util-icon" id="camp-menu-btn" title="Menu">☰</button>
-      <button class="camp-util-icon" id="camp-account-btn" title="Profile"
-        onclick="if(typeof showAccountBuildingOverlay==='function'){showAccountBuildingOverlay();}else if(typeof showAccountSection==='function'){showAccountSection();}">👤</button>
-    </div>
-
-    <!-- Epic centralized NEW RUN button -->
+    <!-- Camp header action buttons: Menu / Account / Continue -->
     <div class="camp-header-btns">
-      <button id="camp-action-btn"
-        onclick="if(typeof playSound==='function'){try{playSound('click');}catch(e){}}window.location.href='sandbox.html'">
-        <span class="new-run-icon">⚡</span> NEW RUN <span class="new-run-icon">⚡</span>
-      </button>
+      <button class="camp-header-btn" id="camp-menu-btn">☰ MENU</button>
+      <button class="camp-header-btn" id="camp-account-btn" onclick="if(typeof showAccountBuildingOverlay==='function'){showAccountBuildingOverlay();}else if(typeof showAccountSection==='function'){showAccountSection();}">👤 PROFILE</button>
+      <button class="camp-header-btn" id="camp-action-btn" onclick="if(typeof playSound==='function'){try{playSound('click');}catch(e){}}window.location.href='sandbox.html'">▶ NEW RUN</button>
     </div>
 
     <!-- Top Corner Widgets: Daily Reward (left) + Spin Wheel (right) -->
