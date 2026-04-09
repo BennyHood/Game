@@ -6732,6 +6732,9 @@
     // Initialize gold coin pool
     _initGoldPool();
 
+    // PERF FIX: Initialize wound decal pool (enemy-class.js)
+    if (window._initWoundPool) window._initWoundPool();
+
     // Build pooled PointLight flash pool (muzzle flashes, hit lights)
     _buildFlashPool();
     // Initialize spatial hash for O(1) projectile→enemy collision
@@ -7466,6 +7469,26 @@
     if (window.TraumaSystem && typeof TraumaSystem.clearAll === 'function') {
       TraumaSystem.clearAll();
     }
+
+    // PERF FIX: Release all wound pool decals between waves
+    if (window._updateWoundPool) {
+      // Force-expire all wounds by passing a huge dt
+      window._updateWoundPool(999);
+    }
+
+    // PERF FIX: Reset flesh pool — hide all active flesh chunks
+    for (let _fi = 0; _fi < _fleshPool.length; _fi++) {
+      if (_fleshPool[_fi].active) {
+        _fleshPool[_fi].active = false;
+        _fleshPool[_fi].mesh.visible = false;
+      }
+    }
+
+    // PERF FIX: Reset blood stain pool
+    for (let _bsi = 0; _bsi < _bloodStainPool.length; _bsi++) {
+      _bloodStainPool[_bsi].mesh.visible = false;
+      _bloodStainPool[_bsi].fadeTimer = 0;
+    }
   }
 
   // ─── Main animation loop ──────────────────────────────────────────────────────
@@ -7549,6 +7572,8 @@
       if (window.BloodSimulatorV21 && typeof BloodSimulatorV21.update === 'function') {
         window.BloodSimulatorV21.update(dt);
       }
+      // PERF FIX: Update wound decal pool (frame-driven timer, replaces setTimeout)
+      if (window._updateWoundPool) window._updateWoundPool(dt);
       if (window.GoreSim && typeof window.GoreSim.update === 'function') {
         window.GoreSim.update(dt);
       }
