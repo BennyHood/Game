@@ -969,14 +969,19 @@
       });
 
       // Confetti burst from modal centre
-      setTimeout(function() {
+      var confettiTimeoutId = setTimeout(function() {
         var rect = modal.getBoundingClientRect();
         _spawnConfetti(rect.left + rect.width / 2, rect.top + rect.height / 2);
+        confettiTimeoutId = null;
       }, 700);
 
       // Claim button
       var claimBtn = modal.querySelector('._drm-claim-btn');
       function _dismiss() {
+        if (confettiTimeoutId !== null) {
+          clearTimeout(confettiTimeoutId);
+          confettiTimeoutId = null;
+        }
         claimBtn.removeEventListener('click', _dismiss);
         overlay.style.transition = 'opacity 0.3s';
         overlay.style.opacity = '0';
