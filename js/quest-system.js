@@ -613,6 +613,26 @@
           progressTutorialQuest('quest_craftAllTools', true);
         }
       }
+
+      // Auto-complete robotic backpack quests when the respective item is crafted
+      if (window.GameHarvesting) {
+        const _rt = window.GameHarvesting.getTools() || {};
+        if (saveData.tutorialQuests.currentQuest === 'quest_harvesterBackpack' &&
+            !saveData.tutorialQuests.readyToClaim.includes('quest_harvesterBackpack') &&
+            _rt.harvesterBackpack) {
+          progressTutorialQuest('quest_harvesterBackpack', true);
+        }
+        if (saveData.tutorialQuests.currentQuest === 'quest_woodAxeArm' &&
+            !saveData.tutorialQuests.readyToClaim.includes('quest_woodAxeArm') &&
+            _rt.woodAxeArm) {
+          progressTutorialQuest('quest_woodAxeArm', true);
+        }
+        if (saveData.tutorialQuests.currentQuest === 'quest_stonePickaxeArm' &&
+            !saveData.tutorialQuests.readyToClaim.includes('quest_stonePickaxeArm') &&
+            _rt.stonePickaxeArm) {
+          progressTutorialQuest('quest_stonePickaxeArm', true);
+        }
+      }
       
       // Fallback: if questForge0_unlock is the active quest but not yet in readyToClaim
       // (can happen when activated via _completeBuild after building questMission),
@@ -4505,12 +4525,26 @@
               // checkDailyLogin already applies gold, gems, and all other rewards to saveData.
               // Only build the parts list here for the stat-change notification.
               const _parts = [];
-              if (result.gold)            _parts.push('+' + result.gold + ' Gold');
-              if (result.gems)            _parts.push('+' + result.gems + ' Gems');
-              if (result.skillPoints)     _parts.push('+' + result.skillPoints + ' Skill Pts');
-              if (result.attributePoints) _parts.push('+' + result.attributePoints + ' Attr Pts');
+              if (result.gold)            _parts.push('💰 +' + result.gold + ' Gold');
+              if (result.gems)            _parts.push('💎 +' + result.gems + ' Gems');
+              if (result.skillPoints)     _parts.push('⭐ +' + result.skillPoints + ' Skill Pts');
+              if (result.attributePoints) _parts.push('💪 +' + result.attributePoints + ' Attr Pts');
               saveSaveData();
-              showStatChange('🎁 Day ' + result.day + ': ' + (_parts.join(' · ') || 'Claimed!'));
+              // Remove emoji prefix (e.g. '💰 +50 Gold' → '+50 Gold') for the stat-change string
+              showStatChange('🎁 Day ' + result.day + ': ' + (_parts.map(p => p.replace(/^[^ ]+ /, '')).join(' · ') || 'Claimed!'));
+
+              // Casino-style dopamine reward modal
+              if (window.DopamineReward && _parts.length > 0) {
+                const _dailyRarityTiers = ['common','uncommon','rare','epic','legendary','mythic','mythic'];
+                const _tierIndex = Math.max(1, Math.min(_dailyRarityTiers.length, result.day || todayDayNum));
+                const _rarityLabel = { common:'Common', uncommon:'Uncommon', rare:'Rare', epic:'Epic', legendary:'LEGENDARY', mythic:'✦ MYTHIC ✦' }[_dailyRarityTiers[_tierIndex - 1]] || '';
+                window.DopamineReward.show({
+                  eyebrow: '🎁 DAY ' + (result.day || todayDayNum) + ' DAILY LOGIN — ' + _rarityLabel,
+                  title: 'REWARD CLAIMED',
+                  items: _parts,
+                  onClaim: function() { _closeDailyOverlay(); }
+                });
+              }
             }
 
             // Juice: card pop animation + glow
