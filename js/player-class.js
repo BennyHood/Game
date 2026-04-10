@@ -1023,17 +1023,19 @@
           if (leanSpd > 0.02) {
             // Forward lean: proportional to speed, character leans into movement direction
             // Since mesh.rotation.y faces movement dir, rotation.x = forward tilt
-            const maxFwdLean = -(0.12 + Math.min(mobilityLean * 0.06, 0.18));
-            const targetFwdLean = Math.max(maxFwdLean, -leanSpd * 2.0);
+            // ANIMATION UPGRADE: Increased lean intensity by ~40% for more dramatic movement feel
+            const maxFwdLean = -(0.18 + Math.min(mobilityLean * 0.10, 0.28));
+            const targetFwdLean = Math.max(maxFwdLean, -leanSpd * 2.8);
             
             // Bank lean: driven by angular velocity — lean INTO turns, not world-space roll
             // Higher mobility = more pronounced banking (looks agile)
-            const maxBank = 0.18 + Math.min(mobilityLean * 0.08, 0.24);
-            const bankInput = -this.angularVelocity * 0.025 * (1 + this.slideAmount * 0.6);
+            // ANIMATION UPGRADE: Increased bank lean by ~40% for snappier turns
+            const maxBank = 0.26 + Math.min(mobilityLean * 0.12, 0.35);
+            const bankInput = -this.angularVelocity * 0.035 * (1 + this.slideAmount * 0.8);
             const targetBank = Math.max(-maxBank, Math.min(maxBank, bankInput));
             
-            // Responsive lean interpolation
-            const leanDt = Math.min(dt * 14, 0.65);
+            // Responsive lean interpolation — slightly faster for snappier feel
+            const leanDt = Math.min(dt * 18, 0.70);
             this.forwardLean += (targetFwdLean - this.forwardLean) * leanDt;
             this.bankLean += (targetBank - this.bankLean) * leanDt;
           } else {
@@ -1452,23 +1454,24 @@
             _accelX = Math.max(-5, Math.min(5, _accelX));
             _accelZ = Math.max(-5, Math.min(5, _accelZ));
             // Fluid pushed opposite to acceleration (sloshing) — scaled by dt for frame-rate independence
-            this._fluidVX += -_accelX * 0.12 * dt;
-            this._fluidVZ += -_accelZ * 0.12 * dt;
-            // Spring back to center (k=22, d=5)
-            this._fluidVX += (-22 * this._fluidOffsetX - 5 * this._fluidVX) * dt;
-            this._fluidVZ += (-22 * this._fluidOffsetZ - 5 * this._fluidVZ) * dt;
+            // ANIMATION UPGRADE: Increased fluid intensity by ~50% for more visible sloshing
+            this._fluidVX += -_accelX * 0.18 * dt;
+            this._fluidVZ += -_accelZ * 0.18 * dt;
+            // Spring back to center (k=18 softer spring, d=4.5 less damping for more wobble)
+            this._fluidVX += (-18 * this._fluidOffsetX - 4.5 * this._fluidVX) * dt;
+            this._fluidVZ += (-18 * this._fluidOffsetZ - 4.5 * this._fluidVZ) * dt;
             this._fluidOffsetX += this._fluidVX * dt;
             this._fluidOffsetZ += this._fluidVZ * dt;
-            // Vertical slosh: up when stopping, down when accelerating
+            // Vertical slosh: up when stopping, down when accelerating — increased range
             const _speedChange = speedMag - (this._prevSpeedMagFluid || 0);
-            this._fluidOffsetY = Math.max(-0.12, Math.min(0.18, this._fluidOffsetY - _speedChange * 0.5));
-            this._fluidOffsetY *= 0.92;
+            this._fluidOffsetY = Math.max(-0.18, Math.min(0.25, this._fluidOffsetY - _speedChange * 0.7));
+            this._fluidOffsetY *= 0.90;
             this._prevSpeedMagFluid = speedMag;
-            // Clamp offset inside body (max radius 0.14)
+            // Clamp offset inside body (max radius 0.20 — increased from 0.14 for more visible movement)
             const _fLen = Math.sqrt(this._fluidOffsetX * this._fluidOffsetX + this._fluidOffsetZ * this._fluidOffsetZ);
-            if (_fLen > 0.14) {
-              this._fluidOffsetX = (this._fluidOffsetX / _fLen) * 0.14;
-              this._fluidOffsetZ = (this._fluidOffsetZ / _fLen) * 0.14;
+            if (_fLen > 0.20) {
+              this._fluidOffsetX = (this._fluidOffsetX / _fLen) * 0.20;
+              this._fluidOffsetZ = (this._fluidOffsetZ / _fLen) * 0.20;
             }
             // Apply world position
             this._innerFluid.position.set(

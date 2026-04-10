@@ -820,6 +820,8 @@ window.RunEndScreen = (function () {
       window._pendingAIDADialogueOnCamp = true;
     }
     setTimeout(function () {
+      // Signal camp to show post-run notifications
+      window._campFromRun = true;
       if (typeof showCamp === 'function') {
         showCamp();
       } else if (typeof showCampScreen === 'function') {
