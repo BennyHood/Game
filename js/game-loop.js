@@ -1064,16 +1064,33 @@
         player.takeDamage(drain);
       }
 
-      // Event Horizon: update black holes
-      if (window._eventHorizonHoles && window._eventHorizonHoles.length > 0) {
+      // Event Horizon: update black holes — also manages canvas suck-in filter
+      {
+        const _canvas = typeof renderer !== 'undefined' && renderer.domElement ? renderer.domElement : null;
+        const _holesActive = !!(window._eventHorizonHoles && window._eventHorizonHoles.length > 0);
+        // Apply / remove CSS filter regardless of which branch we're in, so
+        // the filter is always cleared when holes expire or the array is reset externally.
+        if (_canvas) {
+          if (_holesActive && !_canvas._bhSuckActive) {
+            _canvas._bhSuckActive = true;
+            _canvas.style.transition = 'filter 0.3s ease';
+            _canvas.style.filter = 'saturate(1.4) brightness(0.85) contrast(1.1)';
+          } else if (!_holesActive && _canvas._bhSuckActive) {
+            _canvas._bhSuckActive = false;
+            _canvas.style.filter = '';
+          }
+        }
+
+        if (_holesActive) {
         const PULL_RADIUS = 5.0;
         const PULL_FORCE  = 0.18;
         for (let hi = window._eventHorizonHoles.length - 1; hi >= 0; hi--) {
           const hole = window._eventHorizonHoles[hi];
           hole.timer -= dt;
-          // Animate hole mesh pulsing
+          // Animate hole mesh — grow as it pulls in matter (reverse of enlarging)
           if (hole.mesh) {
-            const sc = 0.6 + 0.2 * Math.sin(hole.timer * 12);
+            const lifeRatio = 1.0 - (hole.timer / 1.5); // 0→1 over 1.5s
+            const sc = 0.3 + lifeRatio * 0.9; // grows from 0.3 to 1.2 as it collapses
             hole.mesh.scale.set(sc, sc, sc);
           }
           // Pull enemies toward the hole
@@ -1101,6 +1118,7 @@
             window._eventHorizonHoles.splice(hi, 1);
           }
         }
+        } // end _holesActive
       }
 
       // Low-HP damage bonus: dynamically update playerStats.damage each frame
