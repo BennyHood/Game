@@ -281,10 +281,17 @@
 
       // Award kill XP + survival bonus via addAccountXP so it lands in saveData.accountXP
       // and currentRunStats.xpAccumulated (both read by RunEndScreen).
-      // GameAccount.addXP is not available in sandbox (idle-account.js not loaded).
       var _killXP = _runKills * 2;
       var _survivalBonus = Math.min(50, Math.floor(_runKills * (1 + _elapsedSec / 60)));
       if (typeof addAccountXP === 'function') addAccountXP(_killXP + _survivalBonus);
+      // FIX: Also route end-of-run XP to GameAccount so both systems stay in sync
+      if (window.GameAccount && typeof window.GameAccount.addXP === 'function') {
+        var _gaResult = window.GameAccount.addXP(_killXP + _survivalBonus, 'Run Complete', saveData);
+        // Store level-up info for camp arrival notification
+        if (_gaResult && _gaResult.leveledUp) {
+          window._pendingAccountLevelUp = _gaResult;
+        }
+      }
 
       // Reset blood/gore systems after a short delay so the death scene stays visible briefly
       setTimeout(function () {
@@ -6732,6 +6739,9 @@
     // Initialize gold coin pool
     _initGoldPool();
 
+    // PERF FIX: Initialize wound decal pool (enemy-class.js)
+    if (window._initWoundPool) window._initWoundPool();
+
     // Build pooled PointLight flash pool (muzzle flashes, hit lights)
     _buildFlashPool();
     // Initialize spatial hash for O(1) projectile→enemy collision
@@ -7466,6 +7476,26 @@
     if (window.TraumaSystem && typeof TraumaSystem.clearAll === 'function') {
       TraumaSystem.clearAll();
     }
+
+    // PERF FIX: Release all wound pool decals between waves
+    if (window._updateWoundPool) {
+      // Force-expire all wounds by passing a huge dt
+      window._updateWoundPool(999);
+    }
+
+    // PERF FIX: Reset flesh pool — hide all active flesh chunks
+    for (let _fi = 0; _fi < _fleshPool.length; _fi++) {
+      if (_fleshPool[_fi].active) {
+        _fleshPool[_fi].active = false;
+        _fleshPool[_fi].mesh.visible = false;
+      }
+    }
+
+    // PERF FIX: Reset blood stain pool
+    for (let _bsi = 0; _bsi < _bloodStainPool.length; _bsi++) {
+      _bloodStainPool[_bsi].mesh.visible = false;
+      _bloodStainPool[_bsi].fadeTimer = 0;
+    }
   }
 
   // ─── Main animation loop ──────────────────────────────────────────────────────
@@ -7549,6 +7579,8 @@
       if (window.BloodSimulatorV21 && typeof BloodSimulatorV21.update === 'function') {
         window.BloodSimulatorV21.update(dt);
       }
+      // PERF FIX: Update wound decal pool (frame-driven timer, replaces setTimeout)
+      if (window._updateWoundPool) window._updateWoundPool(dt);
       if (window.GoreSim && typeof window.GoreSim.update === 'function') {
         window.GoreSim.update(dt);
       }

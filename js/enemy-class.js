@@ -221,6 +221,78 @@
     window.SHARED_PUPIL_MAT  = SHARED_PUPIL_MAT;
     window.ENEMY_TYPES_WITH_EYES = ENEMY_TYPES_WITH_EYES;
 
+    // ── PERF FIX: Pre-allocated wound decal pool (replaces per-hit new THREE.SphereGeometry) ──
+    const _WOUND_POOL_SIZE = 30;
+    const _WOUND_SPHERE_GEO = new THREE.SphereGeometry(0.1, 5, 5);
+    const _WOUND_CIRCLE_GEO = new THREE.CircleGeometry(0.12, 8);
+    _WOUND_SPHERE_GEO._isShared = true;
+    _WOUND_CIRCLE_GEO._isShared = true;
+    const _WOUND_MAT = new THREE.MeshBasicMaterial({ color: 0x220000 });
+    _WOUND_MAT._isShared = true;
+    const _WOUND_CIRCLE_MAT = new THREE.MeshBasicMaterial({ color: 0x0A0000, transparent: true, opacity: 0.92, side: THREE.DoubleSide, depthWrite: false });
+    _WOUND_CIRCLE_MAT._isShared = true;
+    const _woundPool = [];
+    let _woundPoolInited = false;
+    function _initWoundPool() {
+      if (_woundPoolInited || !scene) return;
+      _woundPoolInited = true;
+      for (let i = 0; i < _WOUND_POOL_SIZE; i++) {
+        const isCircle = i >= _WOUND_POOL_SIZE / 2;
+        const geo = isCircle ? _WOUND_CIRCLE_GEO : _WOUND_SPHERE_GEO;
+        const mat = isCircle ? _WOUND_CIRCLE_MAT : _WOUND_MAT;
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.visible = false;
+        mesh.frustumCulled = false;
+        _woundPool.push({ mesh: mesh, active: false, timer: 0, maxTime: 8, parentEnemy: null, isCircle: isCircle });
+      }
+    }
+    function _acquireWound(wantCircle) {
+      if (!_woundPoolInited) _initWoundPool();
+      for (let i = 0; i < _woundPool.length; i++) {
+        if (!_woundPool[i].active && _woundPool[i].isCircle === !!wantCircle) {
+          _woundPool[i].active = true;
+          _woundPool[i].timer = 0;
+          _woundPool[i].mesh.visible = true;
+          return _woundPool[i];
+        }
+      }
+      // Fallback: steal oldest
+      for (let i = 0; i < _woundPool.length; i++) {
+        if (_woundPool[i].isCircle === !!wantCircle) {
+          _releaseWound(_woundPool[i]);
+          _woundPool[i].active = true;
+          _woundPool[i].timer = 0;
+          _woundPool[i].mesh.visible = true;
+          return _woundPool[i];
+        }
+      }
+      return null;
+    }
+    function _releaseWound(slot) {
+      var parentEnemy = slot.parentEnemy;
+      slot.active = false;
+      slot.mesh.visible = false;
+      if (parentEnemy && Array.isArray(parentEnemy.bulletHoles)) {
+        for (var i = parentEnemy.bulletHoles.length - 1; i >= 0; i--) {
+          if (parentEnemy.bulletHoles[i] === slot.mesh) {
+            parentEnemy.bulletHoles.splice(i, 1);
+          }
+        }
+      }
+      if (slot.mesh.parent) slot.mesh.parent.remove(slot.mesh);
+      slot.parentEnemy = null;
+    }
+    function _updateWoundPool(dt) {
+      for (let i = 0; i < _woundPool.length; i++) {
+        var w = _woundPool[i];
+        if (!w.active) continue;
+        w.timer += dt;
+        if (w.timer >= w.maxTime) { _releaseWound(w); }
+      }
+    }
+    window._updateWoundPool = _updateWoundPool;
+    window._initWoundPool = _initWoundPool;
+
     // ── Shared eye layout helper — returns canonical eye position/scale for a type ───────────
     // Defined once here and exposed via window so object-pool.js can use the same values
     // without duplicating the lookup logic.  Keeps eye positioning in sync everywhere.
@@ -2705,12 +2777,16 @@
               if (window._lastDt && window._lastDt > _DT_LOW_FPS) break;
               if (this.mesh && (!this.bulletHoles || this.bulletHoles.length < 8)) {
                 if (!this.bulletHoles) this.bulletHoles = [];
-                const holeGeo = new THREE.CircleGeometry(0.1 + Math.random() * 0.07, 8);
-                const holeMat = new THREE.MeshBasicMaterial({ color: 0x0A0000, transparent: true, opacity: 0.92, side: THREE.DoubleSide, depthWrite: false });
-                const hole = new THREE.Mesh(holeGeo, holeMat);
-                hole.position.set((Math.random()-0.5)*0.3, (Math.random()-0.5)*0.3, 0.52);
-                this.mesh.add(hole);
-                this.bulletHoles.push(hole);
+                // PERF FIX: Use wound pool instead of new geometry per hit
+                const cSlot = _acquireWound(true);
+                if (cSlot) {
+                  const hole = cSlot.mesh;
+                  hole.position.set((Math.random()-0.5)*0.3, (Math.random()-0.5)*0.3, 0.52);
+                  this.mesh.add(hole);
+                  cSlot.parentEnemy = this;
+                  cSlot.maxTime = 10;
+                  this.bulletHoles.push(hole);
+                }
               }
               break;
             case 2: // Tear off a side chunk — squish/shear the enemy scale temporarily
@@ -2796,12 +2872,12 @@
         if (oldHpPercent >= 0.5 && hpPercent < 0.5 && !this.stage2Damage) {
           this.stage2Damage = true;
           
-          // Add visible wounds/holes; for instanced enemies place at world pos since
+          // Add visible wounds/holes using pool; for instanced enemies place at world pos since
           // the individual mesh isn't in the scene during combat
           for(let i=0; i<3; i++) {
-            const holeGeo = new THREE.SphereGeometry(0.1, 6, 6);
-            const holeMat = new THREE.MeshBasicMaterial({ color: 0x220000 }); // Dark red
-            const hole = new THREE.Mesh(holeGeo, holeMat);
+            const slot = _acquireWound(false);
+            if (!slot) continue;
+            const hole = slot.mesh;
             if (this._usesInstancing) {
               hole.position.set(
                 this.mesh.position.x + (Math.random() - 0.5) * 0.5,
@@ -2809,10 +2885,7 @@
                 this.mesh.position.z + (Math.random() - 0.5) * 0.5
               );
               scene.add(hole);
-              // Fade out wound decal over time so it doesn't linger after death cleanup
-              const _hm = holeMat;
-              _hm.transparent = true;
-              setTimeout(() => { if (hole.parent) { scene.remove(hole); holeGeo.dispose(); _hm.dispose(); } }, 8000);
+              slot.maxTime = 8;
             } else {
               hole.position.set(
                 (Math.random() - 0.5) * 0.5,
@@ -2820,6 +2893,8 @@
                 (Math.random() - 0.5) * 0.5
               );
               this.mesh.add(hole);
+              slot.parentEnemy = this;
+              slot.maxTime = 8;
             }
           }
           

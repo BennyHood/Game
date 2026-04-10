@@ -133,6 +133,10 @@
   let _campArrowEl = null;
   let _campArrowDistEl = null;
 
+  // Pre-allocated scratch Vector3 for per-frame camp UI projections (bubble + quest arrow)
+  // Avoids GC pressure from new THREE.Vector3() every frame
+  var _campUITmpVec = null; // lazily initialized when THREE is available
+
   // Smoke particle system and pulsating glow rings around campfire
   let _smokeSystem   = null;
   let _smokePositions = null;
@@ -1867,24 +1871,36 @@
     }
   }
 
-  // Grant minimal starter materials to build the first building (Quest Hall = 1W/1S)
+  // Grant starter materials to build the first building (Quest Hall)
+  // Upgraded: 3 Wood + 3 Stone with visual reward notification
   function _aidaGrantStarterMaterials() {
     const sd = (typeof saveData !== 'undefined') ? saveData : null;
     if (!sd || sd.aidaStarterGranted) return;
     sd.aidaStarterGranted = true;
     if (!sd.resources) sd.resources = {};
-    // Quest Hall costs 1 Wood, 1 Stone (first building)
-    sd.resources.wood  = (sd.resources.wood  || 0) + 1;
-    sd.resources.stone = (sd.resources.stone || 0) + 1;
-    // No gold or skill points - earn through quests
+    // Grant 3 Wood, 3 Stone
+    sd.resources.wood  = (sd.resources.wood  || 0) + 3;
+    sd.resources.stone = (sd.resources.stone || 0) + 3;
     // Unlock Quest Hall so first building can be constructed
     if (sd.campBuildings && sd.campBuildings.questMission) {
       sd.campBuildings.questMission.level = 0;
       sd.campBuildings.questMission.unlocked = true;
     }
     if (typeof saveSaveData === 'function') saveSaveData();
-    if (typeof showStatChange === 'function') {
-      showStatChange('🎁 AIDA: "Minimal materials provided. Build the Command Node."', 'rare');
+    // Show reward notification with OK press requirement
+    if (window._showRewardEarned) {
+      window._showRewardEarned(
+        ['🪵 +3 Wood', '🪨 +3 Stone'],
+        '🤖 A.I.D.A — Resources Provided',
+        function() {
+          // After OK, show player bubble with hint
+          if (window._showPlayerBubble) {
+            window._showPlayerBubble('Now I can build the Quest Hall...', 4000);
+          }
+        }
+      );
+    } else if (typeof showStatChange === 'function') {
+      showStatChange('🎁 A.I.D.A: +3 Wood, +3 Stone — Build the Quest Hall!', 'rare');
     }
     if (typeof window.CampWorld !== 'undefined' && window.CampWorld.refreshBuildings) {
       window.CampWorld.refreshBuildings(sd);
@@ -5110,8 +5126,249 @@
     'adv-clicker-overlay',
     // Slot Machine overlay
     'slot-machine-overlay',
+    // Reward earned overlay
+    'camp-reward-overlay',
+    // Profile modal overlay
+    'camp-profile-modal',
   ];
   window._CAMP_OVERLAY_IDS = _OVERLAY_IDS;
+
+  // ════════════════════════════════════════════════════════════════════════
+  // CAMP STORYLINE BAR ("notisbar") — persistent quest objective display
+  // ════════════════════════════════════════════════════════════════════════
+  let _storylineBarEl = null;
+  function _ensureStorylineBar() {
+    if (_storylineBarEl) return;
+    _storylineBarEl = document.createElement('div');
+    _storylineBarEl.id = 'camp-storyline-bar';
+    _storylineBarEl.style.cssText = [
+      'position:fixed', 'bottom:18px', 'left:50%', 'transform:translateX(-50%)',
+      'z-index:210', 'padding:10px 28px', 'border-radius:8px',
+      'background:linear-gradient(90deg,rgba(0,0,0,0.85),rgba(10,10,30,0.92),rgba(0,0,0,0.85))',
+      'border:1px solid rgba(0,255,255,0.3)',
+      'box-shadow:0 0 20px rgba(0,255,255,0.15),0 4px 12px rgba(0,0,0,0.6)',
+      'font-family:"Segoe UI",sans-serif', 'font-size:13px', 'color:#00ffcc',
+      'letter-spacing:1.5px', 'text-align:center',
+      'pointer-events:none', 'display:none', 'max-width:80vw', 'white-space:nowrap',
+      'text-overflow:ellipsis', 'overflow:hidden',
+    ].join(';');
+    document.body.appendChild(_storylineBarEl);
+  }
+  var _lastStorylineText = null;
+  function _setCampStoryline(text) {
+    if (text === _lastStorylineText) return; // skip redundant DOM writes
+    _lastStorylineText = text;
+    _ensureStorylineBar();
+    if (!text) {
+      _storylineBarEl.style.display = 'none';
+      return;
+    }
+    _storylineBarEl.textContent = text;
+    _storylineBarEl.style.display = 'block';
+  }
+  window._setCampStoryline = _setCampStoryline;
+
+  // ════════════════════════════════════════════════════════════════════════
+  // PLAYER COMIC BUBBLE — thought/speech bubble above player character
+  // ════════════════════════════════════════════════════════════════════════
+  let _playerBubbleEl = null;
+  let _playerBubbleTimer = 0;
+  function _ensurePlayerBubble() {
+    if (_playerBubbleEl) return;
+    _playerBubbleEl = document.createElement('div');
+    _playerBubbleEl.id = 'camp-player-bubble';
+    _playerBubbleEl.style.cssText = [
+      'position:fixed', 'z-index:220', 'padding:8px 16px', 'border-radius:14px',
+      'background:rgba(255,255,255,0.95)', 'border:2px solid #333',
+      'box-shadow:0 3px 10px rgba(0,0,0,0.4)',
+      'font-family:"Comic Sans MS","Segoe UI",cursive', 'font-size:13px', 'color:#222',
+      'max-width:260px', 'text-align:center', 'pointer-events:none', 'display:none',
+      'transform:translate(-50%,-100%)',
+    ].join(';');
+    // Comic tail
+    var tail = document.createElement('div');
+    tail.style.cssText = [
+      'position:absolute', 'bottom:-10px', 'left:50%', 'transform:translateX(-50%)',
+      'width:0', 'height:0',
+      'border-left:8px solid transparent', 'border-right:8px solid transparent',
+      'border-top:10px solid #fff',
+    ].join(';');
+    _playerBubbleEl.appendChild(tail);
+    document.body.appendChild(_playerBubbleEl);
+  }
+  function _showPlayerBubble(text, durationMs) {
+    _ensurePlayerBubble();
+    // Set text before the tail
+    var span = _playerBubbleEl.querySelector('span');
+    if (!span) {
+      span = document.createElement('span');
+      _playerBubbleEl.insertBefore(span, _playerBubbleEl.firstChild);
+    }
+    span.textContent = text;
+    _playerBubbleEl.style.display = 'block';
+    _playerBubbleTimer = (durationMs || 3000) / 1000;
+  }
+  function _updatePlayerBubble(dt) {
+    if (!_playerBubbleEl || _playerBubbleTimer <= 0) return;
+    _playerBubbleTimer -= dt;
+    if (_playerBubbleTimer <= 0) {
+      _playerBubbleEl.style.display = 'none';
+      return;
+    }
+    // Position above the player character using screen projection
+    if (_playerMesh && _campCamera) {
+      var THREE = T();
+      if (!_campUITmpVec && THREE) _campUITmpVec = new THREE.Vector3();
+      if (_campUITmpVec) {
+        _campUITmpVec.copy(_playerMesh.position);
+        _campUITmpVec.y += 1.8;
+        _campUITmpVec.project(_campCamera);
+        var x = (_campUITmpVec.x * 0.5 + 0.5) * window.innerWidth;
+        var y = (-_campUITmpVec.y * 0.5 + 0.5) * window.innerHeight;
+        _playerBubbleEl.style.left = x + 'px';
+        _playerBubbleEl.style.top = y + 'px';
+      }
+    }
+  }
+  window._showPlayerBubble = _showPlayerBubble;
+
+  // ════════════════════════════════════════════════════════════════════════
+  // REWARD EARNED NOTIFICATION — overlay requiring OK press
+  // ════════════════════════════════════════════════════════════════════════
+  let _rewardOverlayEl = null;
+  function _showRewardEarned(rewards, title, onOK) {
+    if (_rewardOverlayEl && _rewardOverlayEl.parentNode) _rewardOverlayEl.parentNode.removeChild(_rewardOverlayEl);
+    // Pause camp input while reward overlay is shown
+    _openMenu();
+    _rewardOverlayEl = document.createElement('div');
+    _rewardOverlayEl.id = 'camp-reward-overlay';
+    _rewardOverlayEl.style.cssText = [
+      'position:fixed', 'top:0', 'left:0', 'width:100%', 'height:100%',
+      'z-index:25000', 'display:flex', 'flex-direction:column',
+      'align-items:center', 'justify-content:center',
+      'background:rgba(0,0,0,0.8)',
+      'font-family:"Bangers",cursive',
+    ].join(';');
+    var box = document.createElement('div');
+    box.style.cssText = [
+      'background:linear-gradient(135deg,rgba(8,20,8,0.95),rgba(5,15,5,0.98))',
+      'border:2px solid rgba(0,255,100,0.5)', 'border-radius:16px',
+      'padding:30px 50px', 'text-align:center', 'max-width:400px',
+      'box-shadow:0 0 40px rgba(0,255,100,0.2)',
+    ].join(';');
+    var titleEl = document.createElement('div');
+    titleEl.style.cssText = 'font-size:28px;color:#00ff66;letter-spacing:3px;margin-bottom:16px;text-shadow:0 0 20px #00ff66;';
+    titleEl.textContent = title || '🎁 REWARD EARNED';
+    box.appendChild(titleEl);
+    // Render each reward line
+    if (Array.isArray(rewards)) {
+      rewards.forEach(function(r) {
+        var line = document.createElement('div');
+        line.style.cssText = 'font-size:18px;color:#FFD700;margin:6px 0;font-family:"Segoe UI",sans-serif;';
+        line.textContent = r;
+        box.appendChild(line);
+      });
+    }
+    // OK button
+    var okBtn = document.createElement('button');
+    okBtn.style.cssText = [
+      'margin-top:24px', 'padding:12px 48px', 'font-size:20px',
+      'font-family:"Bangers",cursive', 'color:#000', 'background:#00ff66',
+      'border:none', 'border-radius:8px', 'cursor:pointer',
+      'letter-spacing:2px', 'box-shadow:0 0 20px rgba(0,255,100,0.4)',
+    ].join(';');
+    okBtn.textContent = 'OK';
+    okBtn.addEventListener('click', function() {
+      if (_rewardOverlayEl && _rewardOverlayEl.parentNode) _rewardOverlayEl.parentNode.removeChild(_rewardOverlayEl);
+      _rewardOverlayEl = null;
+      _resumeInput();
+      if (onOK) onOK();
+    });
+    box.appendChild(okBtn);
+    _rewardOverlayEl.appendChild(box);
+    document.body.appendChild(_rewardOverlayEl);
+  }
+  window._showRewardEarned = _showRewardEarned;
+
+  // ════════════════════════════════════════════════════════════════════════
+  // ACHIEVEMENT NOTIFICATION — toast with OK button
+  // ════════════════════════════════════════════════════════════════════════
+  function _showAchievementToast(text, rewards, onOK) {
+    _showRewardEarned(rewards, '🏆 ' + text, onOK);
+  }
+  window._showAchievementToast = _showAchievementToast;
+
+  // ════════════════════════════════════════════════════════════════════════
+  // POST-RUN NOTIFICATION CHAIN — sequential overlays on camp return
+  // Shows account level-up → achievements → challenges → rank → reward earned
+  // ════════════════════════════════════════════════════════════════════════
+  function _showPostRunNotifications() {
+    var sd = (typeof saveData !== 'undefined') ? saveData : null;
+    if (!sd) return;
+    var steps = [];
+
+    // 1. Account level-up notification
+    var pendingLevelUp = window._pendingAccountLevelUp;
+    if (pendingLevelUp && pendingLevelUp.leveledUp) {
+      steps.push(function(next) {
+        _showRewardEarned(
+          ['⬆️ Account Level ' + (pendingLevelUp.newLevel || sd.accountLevel || 1)],
+          '🎉 ACCOUNT LEVEL UP!',
+          next
+        );
+      });
+      window._pendingAccountLevelUp = null;
+    }
+
+    // 2. Achievements earned this run
+    var pendingAchievements = window._pendingRunAchievements;
+    if (pendingAchievements && pendingAchievements.length > 0) {
+      pendingAchievements.forEach(function(ach) {
+        steps.push(function(next) {
+          _showRewardEarned(
+            ach.rewards || [],
+            '🏆 ' + (ach.name || 'Achievement Unlocked!'),
+            next
+          );
+        });
+      });
+      window._pendingRunAchievements = null;
+    }
+
+    // 3. Rank change
+    var pendingRank = window._pendingRankChange;
+    if (pendingRank) {
+      steps.push(function(next) {
+        _showRewardEarned(
+          ['New Rank: ' + (pendingRank.title || 'Unknown')],
+          '⚔️ RANK UP!',
+          next
+        );
+      });
+      window._pendingRankChange = null;
+    }
+
+    // 4. Final "reward earned" summary if XP was earned
+    var runStats = window.currentRunStats;
+    if (runStats && (runStats.xpAccumulated || runStats.goldEarned)) {
+      var finalRewards = [];
+      if (runStats.xpAccumulated) finalRewards.push('⭐ +' + runStats.xpAccumulated + ' XP Earned');
+      if (runStats.goldEarned) finalRewards.push('🪙 +' + runStats.goldEarned + ' Gold');
+      if (runStats.kills) finalRewards.push('⚔️ ' + runStats.kills + ' Kills');
+      if (finalRewards.length > 0) {
+        steps.push(function(next) {
+          _showRewardEarned(finalRewards, '📊 RUN SUMMARY', next);
+        });
+      }
+    }
+
+    // Execute steps sequentially
+    function _runStep(idx) {
+      if (idx >= steps.length) return;
+      steps[idx](function() { _runStep(idx + 1); });
+    }
+    if (steps.length > 0) _runStep(0);
+  }
 
   /**
    * Auto-detect when a building overlay has been dismissed.
@@ -5898,7 +6155,7 @@
 
     ui.addEventListener('click', function(e) {
       e.stopPropagation();
-      _toggleWaterBot();
+      _showProfileModal();
     });
 
     _updateCampProfile();
@@ -5916,20 +6173,190 @@
       nameEl.textContent = (sd.playerName || 'UNIT-001').toUpperCase();
     }
     if (levelEl) {
-      const lvl = sd.level || 1;
-      const kills = sd.totalKills || 0;
+      // FIX: Use accountLevel (permanent profile level) instead of in-run level
+      const accLvl = sd.accountLevel || (sd.account && sd.account.level) || 1;
+      // Get rank from GameAccount milestones if available
       let rank = 'RECRUIT';
-      if (kills >= 1000) rank = 'COMMANDER';
-      else if (kills >= 300) rank = 'WARRIOR';
-      else if (kills >= 100) rank = 'FIGHTER';
-      else if (kills >= 30) rank = 'SOLDIER';
-      levelEl.textContent = 'LVL ' + lvl + ' · ' + rank;
+      if (window.GameAccount && window.GameAccount.getMilestones) {
+        var milestones = window.GameAccount.getMilestones();
+        for (var mi = milestones.length - 1; mi >= 0; mi--) {
+          if (milestones[mi].level <= accLvl) {
+            rank = milestones[mi].title || rank;
+            break;
+          }
+        }
+      } else {
+        // Fallback kill-based rank
+        var kills = sd.totalKills || 0;
+        if (kills >= 1000) rank = 'COMMANDER';
+        else if (kills >= 300) rank = 'WARRIOR';
+        else if (kills >= 100) rank = 'FIGHTER';
+        else if (kills >= 30) rank = 'SOLDIER';
+      }
+      levelEl.textContent = 'LVL ' + accLvl + ' · ' + rank;
     }
     if (badge) {
       const tq = sd.tutorialQuests;
       const hasNew = tq && tq.readyToClaim && tq.readyToClaim.length > 0;
       badge.style.display = hasNew ? 'flex' : 'none';
     }
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // Profile Modal — opens when clicking the profile UI (not WaterBot)
+  // Contains settings, profile border, linked rank/level, name, and 7-day welcome
+  // ──────────────────────────────────────────────────────────
+  function _showProfileModal() {
+    // Close existing if open
+    var existing = document.getElementById('camp-profile-modal');
+    if (existing) { existing.remove(); _resumeInput(); return; }
+
+    _openMenu();
+    var sd = (typeof saveData !== 'undefined') ? saveData : null;
+    var accLvl = (sd && sd.accountLevel) || 1;
+    var playerName = (sd && sd.playerName) || 'UNIT-001';
+    // Get rank
+    var rank = 'RECRUIT';
+    if (window.GameAccount && window.GameAccount.getMilestones) {
+      var milestones = window.GameAccount.getMilestones();
+      for (var mi = milestones.length - 1; mi >= 0; mi--) {
+        if (milestones[mi].level <= accLvl) { rank = milestones[mi].title || rank; break; }
+      }
+    }
+    var rankColor = '#FFD700';
+    if (window.GameAccount && window.GameAccount.getRankColor) {
+      rankColor = window.GameAccount.getRankColor(rank);
+    }
+
+    var modal = document.createElement('div');
+    modal.id = 'camp-profile-modal';
+    modal.style.cssText = [
+      'position:fixed', 'top:0', 'left:0', 'width:100%', 'height:100%',
+      'z-index:20000', 'display:flex', 'align-items:center', 'justify-content:center',
+      'background:rgba(0,0,0,0.75)',
+    ].join(';');
+
+    var box = document.createElement('div');
+    box.style.cssText = [
+      'background:linear-gradient(135deg,rgba(8,8,20,0.98),rgba(5,5,15,0.99))',
+      'border:2px solid rgba(0,255,255,0.4)', 'border-radius:18px',
+      'padding:30px 40px', 'text-align:center', 'max-width:380px', 'width:90%',
+      'box-shadow:0 0 50px rgba(0,255,255,0.15)',
+    ].join(';');
+
+    // Avatar with profile border ring
+    var avatarWrap = document.createElement('div');
+    avatarWrap.style.cssText = [
+      'width:80px', 'height:80px', 'border-radius:50%', 'margin:0 auto 16px',
+      'background:radial-gradient(circle at 35% 30%, #0a3a4a 0%, #020a10 100%)',
+      'border:3px solid ' + rankColor,
+      'display:flex', 'align-items:center', 'justify-content:center',
+      'font-size:38px',
+      'box-shadow:0 0 20px ' + rankColor + '44',
+    ].join(';');
+    avatarWrap.textContent = '💧';
+    box.appendChild(avatarWrap);
+
+    // Name
+    var nameEl = document.createElement('div');
+    nameEl.style.cssText = 'color:#00ffff;font-family:Bangers,cursive;font-size:24px;letter-spacing:2px;margin-bottom:4px;';
+    nameEl.textContent = playerName.toUpperCase();
+    box.appendChild(nameEl);
+
+    // Level + Rank
+    var lvlEl = document.createElement('div');
+    lvlEl.style.cssText = 'color:' + rankColor + ';font-family:"Courier New",monospace;font-size:14px;margin-bottom:16px;';
+    lvlEl.textContent = 'LEVEL ' + accLvl + ' · ' + rank;
+    box.appendChild(lvlEl);
+
+    // XP bar
+    var xpNeeded = 100 + (accLvl - 1) * 50; // approximate
+    if (typeof getAccountLevelXPRequired === 'function') xpNeeded = getAccountLevelXPRequired(accLvl);
+    var currXP = (sd && sd.accountXP) || 0;
+    var xpPct = Math.min(100, (currXP / xpNeeded) * 100);
+    var xpBar = document.createElement('div');
+    xpBar.style.cssText = 'width:100%;height:8px;background:rgba(255,255,255,0.1);border-radius:4px;margin-bottom:20px;overflow:hidden;';
+    var xpFill = document.createElement('div');
+    xpFill.style.cssText = 'width:' + xpPct + '%;height:100%;background:linear-gradient(90deg,#00ffcc,#00ccff);border-radius:4px;transition:width 0.4s;';
+    xpBar.appendChild(xpFill);
+    box.appendChild(xpBar);
+    var xpLabel = document.createElement('div');
+    xpLabel.style.cssText = 'color:#888;font-size:11px;margin-top:-16px;margin-bottom:18px;';
+    xpLabel.textContent = currXP + ' / ' + xpNeeded + ' XP';
+    box.appendChild(xpLabel);
+
+    // Stats summary — built via DOM elements to avoid innerHTML XSS risk
+    var statsEl = document.createElement('div');
+    statsEl.style.cssText = 'color:#aaa;font-size:12px;margin-bottom:18px;line-height:1.8;text-align:left;padding:0 10px;';
+    var totalKills = (sd && sd.totalKills) || 0;
+    var totalRuns = (sd && sd.totalRuns) || 0;
+    var totalGold = (sd && sd.gold) || 0;
+    var _statLines = [
+      { label: '⚔️ Total Kills: ', value: totalKills, color: '#fff' },
+      { label: '🔄 Total Runs: ', value: totalRuns, color: '#fff' },
+      { label: '🪙 Gold: ', value: totalGold, color: '#FFD700' }
+    ];
+    _statLines.forEach(function(s, idx) {
+      var lbl = document.createTextNode(s.label);
+      var val = document.createElement('span');
+      val.style.color = s.color;
+      val.textContent = s.value;
+      statsEl.appendChild(lbl);
+      statsEl.appendChild(val);
+      if (idx < _statLines.length - 1) statsEl.appendChild(document.createElement('br'));
+    });
+    box.appendChild(statsEl);
+
+    // Buttons row
+    var btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:10px;justify-content:center;flex-wrap:wrap;';
+
+    // Settings button
+    var settingsBtn = document.createElement('button');
+    settingsBtn.style.cssText = 'padding:8px 16px;font-size:13px;font-family:"Segoe UI",sans-serif;background:rgba(255,255,255,0.1);color:#ccc;border:1px solid rgba(255,255,255,0.2);border-radius:6px;cursor:pointer;';
+    settingsBtn.textContent = '⚙️ Settings';
+    settingsBtn.addEventListener('click', function() {
+      modal.remove();
+      _resumeInput();
+      if (window.SettingsUI && typeof window.SettingsUI.show === 'function') {
+        window.SettingsUI.show();
+      } else if (typeof window.showSettings === 'function') {
+        window.showSettings();
+      }
+    });
+    btnRow.appendChild(settingsBtn);
+
+    // 7-Day Welcome button
+    var welcomeBtn = document.createElement('button');
+    welcomeBtn.style.cssText = 'padding:8px 16px;font-size:13px;font-family:"Segoe UI",sans-serif;background:rgba(255,255,255,0.1);color:#ccc;border:1px solid rgba(255,255,255,0.2);border-radius:6px;cursor:pointer;';
+    welcomeBtn.textContent = '🎁 7-Day Rewards';
+    welcomeBtn.addEventListener('click', function() {
+      modal.remove();
+      _resumeInput();
+      if (window.WelcomeUI && typeof window.WelcomeUI.show === 'function') {
+        window.WelcomeUI.show();
+      }
+    });
+    btnRow.appendChild(welcomeBtn);
+
+    box.appendChild(btnRow);
+
+    // Close button
+    var closeBtn = document.createElement('button');
+    closeBtn.style.cssText = 'margin-top:18px;padding:10px 32px;font-size:16px;font-family:Bangers,cursive;background:rgba(0,255,255,0.15);color:#00ffff;border:1px solid rgba(0,255,255,0.3);border-radius:8px;cursor:pointer;letter-spacing:1px;';
+    closeBtn.textContent = 'CLOSE';
+    closeBtn.addEventListener('click', function() {
+      modal.remove();
+      _resumeInput();
+    });
+    box.appendChild(closeBtn);
+
+    modal.appendChild(box);
+    // Click outside to close
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) { modal.remove(); _resumeInput(); }
+    });
+    document.body.appendChild(modal);
   }
 
   // ──────────────────────────────────────────────────────────
@@ -6565,6 +6992,25 @@
       console.warn('[CampWorld] Non-critical setup error in enter():', setupErr);
     }
 
+    // First-time camp arrival: show player comic bubble intro
+    if (_saveData && !_saveData._firstCampBubbleShown) {
+      _saveData._firstCampBubbleShown = true;
+      setTimeout(function() {
+        if (!_isActive) return;
+        if (window._showPlayerBubble) {
+          window._showPlayerBubble('hey whats going on...', 4000);
+        }
+      }, 2000);
+    }
+
+    // Post-run camp arrival: show pending notifications (level-up, achievements, rewards)
+    if (window._campFromRun) {
+      window._campFromRun = false;
+      setTimeout(function() {
+        _showPostRunNotifications();
+      }, 800);
+    }
+
     _isActive = true;
     if (typeof window._syncJoystickZone === 'function') window._syncJoystickZone();
   }
@@ -6577,6 +7023,10 @@
     _isActive = false;
     if (typeof window._syncJoystickZone === 'function') window._syncJoystickZone();
     _menuOpen = false;
+    // Hide camp-specific overlays
+    _setCampStoryline(null);
+    if (_playerBubbleEl) _playerBubbleEl.style.display = 'none';
+    _playerBubbleTimer = 0;
     document.body.classList.remove('camp-menu-open');
     _keys = {};
     _touch.active = false;
@@ -6803,6 +7253,42 @@
   }
 
   /**
+   * _updateCampStorylineBar
+   * Updates the camp storyline bar with the current quest objective text.
+   */
+  function _updateCampStorylineBar() {
+    const tq = (typeof saveData !== 'undefined') && saveData && saveData.tutorialQuests;
+    if (!tq || !tq.currentQuest) {
+      _setCampStoryline(null);
+      return;
+    }
+    var cq = tq.currentQuest;
+    var storyText = '';
+    if (cq === 'quest_findingAida') {
+      if (!_aidaIntroState.chipPickedUp) {
+        storyText = '📜 Quest 1 — Investigate that glowing chip near the campfire...';
+      } else if (!_aidaIntroState.chipInserted) {
+        storyText = '📜 Quest 1 — Insert the chip into the broken robot...';
+      } else {
+        storyText = '📜 Quest 1 — Go to the Quest Hall to continue...';
+      }
+    } else if (cq === 'quest_buildQuesthall') {
+      storyText = '📜 Quest 2 — Build the Quest Hall...';
+    } else if (cq === 'quest_craftAllTools') {
+      storyText = '📜 Quest — Craft all tools at the Forge...';
+    } else if (cq === 'quest_firstBlood') {
+      storyText = '📜 Quest — Complete your first run...';
+    } else if (cq === 'quest_dailyRoutine') {
+      storyText = '📜 Quest — Complete your daily routine...';
+    } else if (cq === 'firstRunDeath') {
+      storyText = '📜 Quest — Head out and fight — survive your first run!';
+    } else if (cq === 'quest_shrineCalibrate') {
+      storyText = '📜 Quest — Calibrate the shrine...';
+    }
+    _setCampStoryline(storyText || null);
+  }
+
+  /**
    * _updateCampQuestArrow
    * Shows a waterdrop-shaped arrow pointing toward the current quest objective building.
    */
@@ -6855,8 +7341,36 @@
     const dz = targetDef.z - _playerPos.z;
     const dist = Math.sqrt(dx * dx + dz * dz);
 
+    // ── Distance-based color coding ──
+    // Green (0-1m: very close), Yellow (2-5m), White (standard)
+    var arrowColor = '#ffffff';
+    if (dist < 1.5)       arrowColor = '#00ff66';
+    else if (dist < 5.0)  arrowColor = '#ffdd00';
+    _campArrowEl.style.color = arrowColor;
+    _campArrowEl.style.textShadow = '0 0 12px ' + arrowColor;
+
+    // ── "Point down" mode: when directly over the goal, show ▼ indicator ──
     if (dist < 3.5) {
-      _campArrowEl.style.display = 'none';
+      // Project goal position to screen to show ▼ marker
+      if (_campCamera) {
+        var THREE = T();
+        if (!_campUITmpVec && THREE) _campUITmpVec = new THREE.Vector3();
+        if (_campUITmpVec) {
+          _campUITmpVec.set(targetDef.x, 0.5, targetDef.z);
+          _campUITmpVec.project(_campCamera);
+          var gx = (_campUITmpVec.x * 0.5 + 0.5) * window.innerWidth;
+          var gy = (-_campUITmpVec.y * 0.5 + 0.5) * window.innerHeight;
+          _campArrowEl.style.display = 'block';
+          _campArrowEl.style.left = (gx - 24) + 'px';
+          _campArrowEl.style.top = (gy - 40) + 'px';
+          _campArrowEl.style.transform = 'rotate(180deg)';
+          _campArrowEl.style.color = '#00ff66';
+          _campArrowEl.style.textShadow = '0 0 16px #00ff66';
+          if (_campArrowDistEl) _campArrowDistEl.textContent = Math.round(dist * 10) / 10 + 'm';
+        }
+      } else {
+        _campArrowEl.style.display = 'none';
+      }
       return;
     }
 
@@ -6906,6 +7420,8 @@
     _updateIncubator(dt);
     _updateAidaIntro(dt);
     _updateCampQuestArrow();
+    _updatePlayerBubble(dt);
+    _updateCampStorylineBar();
     _updateCodexPyramid(dt);
     _updateCorruption(dt);
 
