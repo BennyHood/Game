@@ -6177,6 +6177,18 @@
   // ──────────────────────────────────────────────────────────
   // Player Profile UI — top-left corner of camp HUD
   // ──────────────────────────────────────────────────────────
+
+  /**
+   * Resolve the player's display name from the most authoritative source available.
+   * Priority: saveData.playerName → localStorage['wds_playerName'] (set by Welcome screen) → 'UNIT-001'.
+   * Returns the raw (un-uppercased) name string.
+   */
+  function _resolvePlayerName() {
+    var sd = (typeof saveData !== 'undefined') ? saveData : null;
+    return (sd && sd.playerName) ||
+      (typeof localStorage !== 'undefined' && localStorage.getItem('wds_playerName')) ||
+      'UNIT-001';
+  }
   function _ensureCampProfile() {
     if (document.getElementById('camp-profile-ui')) {
       _updateCampProfile();
@@ -6215,11 +6227,7 @@
     const nameEl = document.createElement('div');
     nameEl.id = 'camp-profile-name';
     nameEl.style.cssText = 'color:#00ffff;font-family:Bangers,cursive;font-size:15px;letter-spacing:1.5px;';
-    // Show name from saveData or localStorage from Welcome screen, not a hard-coded default
-    var _initName = (sd && sd.playerName) ||
-      (typeof localStorage !== 'undefined' && localStorage.getItem('wds_playerName')) ||
-      'UNIT-001';
-    nameEl.textContent = _initName.toUpperCase();
+    nameEl.textContent = _resolvePlayerName().toUpperCase();
 
     const levelEl = document.createElement('div');
     levelEl.id = 'camp-profile-level';
@@ -6275,12 +6283,9 @@
     const levelEl = document.getElementById('camp-profile-level');
     const badge = document.getElementById('camp-profile-badge');
 
-    // Resolve name: saveData first, then localStorage (set by Welcome screen), then fallback
-    var _resolvedName = (sd && sd.playerName) ||
-      (typeof localStorage !== 'undefined' && localStorage.getItem('wds_playerName')) ||
-      'UNIT-001';
+    // Resolve name using shared helper (saveData → localStorage → fallback)
     if (nameEl) {
-      nameEl.textContent = _resolvedName.toUpperCase();
+      nameEl.textContent = _resolvePlayerName().toUpperCase();
     }
     if (!sd) return;
     if (levelEl) {
@@ -6325,10 +6330,8 @@
     _openMenu();
     var sd = (typeof saveData !== 'undefined') ? saveData : null;
     var accLvl = (sd && sd.accountLevel) || 1;
-    // Resolve name: saveData → localStorage (Welcome screen) → fallback
-    var playerName = (sd && sd.playerName) ||
-      (typeof localStorage !== 'undefined' && localStorage.getItem('wds_playerName')) ||
-      'UNIT-001';
+    // Resolve name using shared helper (saveData → localStorage → fallback)
+    var playerName = _resolvePlayerName();
     // Get rank
     var rank = 'RECRUIT';
     if (window.GameAccount && window.GameAccount.getMilestones) {
