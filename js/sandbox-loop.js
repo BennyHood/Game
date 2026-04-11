@@ -483,6 +483,7 @@
   let _iceSpearTimer      = 0;
   let _fireRingTimer      = 0;
   let _fireRingAngle      = 0;   // running rotation angle for fire-ring orbs (radians)
+  let _fireRingOrbMeshes  = [];  // visual orb meshes orbiting the player
   let _lightningTimer     = 0;
   let _meteorTimer        = 0;
   let _teslaSaberTimer    = 0;
@@ -4857,6 +4858,44 @@
       const orbs = weapons.fireRing.orbs || 3;
       const fRange = weapons.fireRing.range || 4;
       _fireRingAngle += (weapons.fireRing.rotationSpeed || 2) * dt;
+
+      // ── Create/sync visual orb meshes ──────────────────────────────────────
+      if (_fireRingOrbMeshes.length !== orbs) {
+        // Remove old orbs — geometry is shared so dispose it only once
+        if (_fireRingOrbMeshes.length > 0) {
+          const _sharedGeo = _fireRingOrbMeshes[0].geometry;
+          for (let oi = 0; oi < _fireRingOrbMeshes.length; oi++) {
+            scene.remove(_fireRingOrbMeshes[oi]);
+            if (_fireRingOrbMeshes[oi].material) _fireRingOrbMeshes[oi].material.dispose();
+          }
+          if (_sharedGeo) _sharedGeo.dispose();
+        }
+        _fireRingOrbMeshes = [];
+        // Spawn new orbs — one geometry shared by all, separate material per orb
+        const orbGeo = new THREE.SphereGeometry(0.28, 10, 8);
+        for (let oi = 0; oi < orbs; oi++) {
+          const orbMat = new THREE.MeshBasicMaterial({ color: 0xFF4400 });
+          const orbMesh = new THREE.Mesh(orbGeo, orbMat);
+          // Glow light per orb
+          const orbLight = new THREE.PointLight(0xFF6600, 1.2, 3.5);
+          orbMesh.add(orbLight);
+          orbMesh._fireOrbLight = orbLight;
+          scene.add(orbMesh);
+          _fireRingOrbMeshes.push(orbMesh);
+        }
+      }
+      // Update orb positions and pulse glow each frame
+      const _pulseScale = 0.9 + 0.1 * Math.sin(_fireRingAngle * 4);
+      for (let oi = 0; oi < _fireRingOrbMeshes.length; oi++) {
+        const angle = _fireRingAngle + (oi / orbs) * Math.PI * 2;
+        _fireRingOrbMeshes[oi].position.set(px + Math.cos(angle) * fRange, 0.6, pz + Math.sin(angle) * fRange);
+        _fireRingOrbMeshes[oi].scale.setScalar(_pulseScale);
+        if (_fireRingOrbMeshes[oi]._fireOrbLight) {
+          _fireRingOrbMeshes[oi]._fireOrbLight.intensity = 1.0 + 0.5 * Math.sin(_fireRingAngle * 6 + oi);
+        }
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
       _fireRingTimer -= dt * 1000;
       if (_fireRingTimer <= 0) {
         _fireRingTimer = weapons.fireRing.cooldown || 800;
@@ -4870,8 +4909,24 @@
           const orbZ = pz + Math.sin(angle) * fRange;
           _weaponAoeDamage(orbX, orbZ, orbHitRadSq, dmg, '#FF4400');
         }
+        if (window.spawnWeaponMuzzleFlash) {
+          _tmpV3.set(px, 0.6, pz);
+          window.spawnWeaponMuzzleFlash('fireRing', _tmpV3, null, scene);
+        }
       }
-    } else { _fireRingTimer = 0; }
+    } else {
+      // Hide/remove orbs when fire ring is not active — geometry shared so dispose once
+      if (_fireRingOrbMeshes.length > 0) {
+        const _sharedGeo = _fireRingOrbMeshes[0].geometry;
+        for (let oi = 0; oi < _fireRingOrbMeshes.length; oi++) {
+          scene.remove(_fireRingOrbMeshes[oi]);
+          if (_fireRingOrbMeshes[oi].material) _fireRingOrbMeshes[oi].material.dispose();
+        }
+        if (_sharedGeo) _sharedGeo.dispose();
+        _fireRingOrbMeshes = [];
+      }
+      _fireRingTimer = 0;
+    }
 
     // ── LIGHTNING: instant chain-strike hitting up to 3 enemies in range ──────
     if (weapons.lightning && weapons.lightning.active) {
