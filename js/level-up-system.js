@@ -1653,33 +1653,23 @@ window.spawnBossChest = function(x, z) {
         cardInner.appendChild(cardFront);
         card.appendChild(cardInner);
 
-        // ── 6 different entry animations (randomly assigned) ──
-        const _cardEntryAnims = [
-          'cardEnterFromTop',    // 0: drops from top
-          'cardEnterFromLeft',   // 1: rockets from left
-          'cardEnterFromRight',  // 2: blasts from right
-          'cardEnterFromBottom', // 3: erupts from bottom
-          'cardEnterZoomPop',    // 4: pops from center
-          'cardEnterSpiral',     // 5: diagonal spiral
-        ];
-        const _animName = _cardEntryAnims[index % _cardEntryAnims.length];
-        const _animDur = 0.65;
-        // Stagger: 0.3s wall + 0.22s between each card
-        const cardDelay = 0.3 + (index * 0.22);
+        // ── Hard slam entry animation — all cards fire in from the top ──
+        const _animDur = 0.5;
+        // Stagger: 0.3s wall + 0.18s between each card (tighter = punchier sequential slams)
+        const cardDelay = 0.3 + (index * 0.18);
         card.style.opacity = '0';
         card.style.pointerEvents = 'none'; // Disable clicks until flipped
-        card.style.animation = `${_animName} ${_animDur}s cubic-bezier(0.34, 1.45, 0.64, 1) ${cardDelay}s both`;
+        card.style.animation = `cardSlam ${_animDur}s cubic-bezier(0.25, 0.46, 0.45, 0.94) ${cardDelay}s both`;
 
-        // After entry animation completes, flash the thud effect
+        // After slam completes, trigger thud flash + screen shake
         card.addEventListener('animationend', (e) => {
-          const entryAnims = new Set(_cardEntryAnims);
-          if (e.animationName && entryAnims.has(e.animationName)) {
+          if (e.animationName === 'cardSlam') {
             card.style.animation = '';
             card.style.opacity = '1';
             card.style.transform = '';
             // Thud flash
             card.classList.add('card-thud-flash');
-            setTimeout(() => card.classList.remove('card-thud-flash'), 380);
+            setTimeout(() => card.classList.remove('card-thud-flash'), 420);
             document.body.classList.add('screen-shake-brief');
             setTimeout(() => document.body.classList.remove('screen-shake-brief'), 200);
           }
@@ -2017,8 +2007,8 @@ window.spawnBossChest = function(x, z) {
 
         // ── After all cards have entered, flip them face-up one by one ──
         const _numCards = choices.length;
-        // Time for last card to land: 0.3s wall + (n-1)*0.22s stagger + 0.65s anim
-        const _allEnteredMs = Math.round((0.3 + (_numCards - 1) * 0.22 + 0.65) * 1000) + 60;
+        // Time for last card to land: 0.3s wall + (n-1)*0.18s stagger + 0.5s slam anim
+        const _allEnteredMs = Math.round((0.3 + (_numCards - 1) * 0.18 + 0.5) * 1000) + 60;
         const _allCards = list.querySelectorAll('.upgrade-card');
         setTimeout(function() {
           for (let _fi = 0; _fi < _allCards.length; _fi++) {
@@ -2026,12 +2016,13 @@ window.spawnBossChest = function(x, z) {
               setTimeout(function() {
                 const _ci = _c.querySelector('.card-inner');
                 if (_ci) {
-                  _ci.style.transition = 'transform 0.52s cubic-bezier(0.34, 1.45, 0.64, 1)';
+                  // Satisfying premium flip: strong overshoot bezier (1.8 > 1.0 = overshoot)
+                  _ci.style.transition = 'transform 0.46s cubic-bezier(0.22, 1.8, 0.36, 1)';
                   _c.classList.add('card-flipped');
                 }
                 // Enable interaction only after flip
-                setTimeout(function() { _c.style.pointerEvents = 'auto'; }, 540);
-              }, _idx * 160);
+                setTimeout(function() { _c.style.pointerEvents = 'auto'; }, 480);
+              }, _idx * 140);
             })(_fi, _allCards[_fi]);
           }
         }, _allEnteredMs);

@@ -3376,9 +3376,9 @@
     .upgrade-card.card-flipped .card-inner {
       transform: rotateY(180deg);
     }
-    /* Flip animation with overshoot + land thud */
+    /* Flip animation with satisfying overshoot + premium settle */
     .upgrade-card.card-flipping .card-inner {
-      transition: transform 0.55s cubic-bezier(0.34, 1.45, 0.64, 1);
+      transition: transform 0.5s cubic-bezier(0.22, 1.8, 0.36, 1);
     }
 
     /* Card reveal rotation - sequential one-by-one entrance */
@@ -3403,66 +3403,32 @@
       }
     }
 
-    /* ─── 6 unique card entry animations ─── */
-    /* 1: Drops from top, overshoots, settles with bounce */
-    @keyframes cardEnterFromTop {
-      0%   { opacity:0; transform: translate(0,-200%) scale(0.5) rotate(8deg); filter:blur(3px); }
-      55%  { opacity:1; transform: translate(0, 12%) scale(1.07) rotate(-2deg); filter:blur(0); }
-      72%  { transform: translate(0,-5%) scale(0.97) rotate(1deg); }
-      86%  { transform: translate(0, 3%) scale(1.02) rotate(-0.5deg); }
-      100% { opacity:1; transform: translate(0,0) scale(1) rotate(0deg); }
-    }
-    /* 2: Rockets in from left, spins and smacks into place */
-    @keyframes cardEnterFromLeft {
-      0%   { opacity:0; transform: translate(-280%,0) scale(0.4) rotate(-20deg); filter:blur(4px); }
-      50%  { opacity:1; transform: translate(8%,0) scale(1.08) rotate(3deg); filter:blur(0); }
-      70%  { transform: translate(-4%,0) scale(0.96) rotate(-1deg); }
-      85%  { transform: translate(2%,0) scale(1.02) rotate(0.5deg); }
-      100% { opacity:1; transform: translate(0,0) scale(1) rotate(0deg); }
-    }
-    /* 3: Blasts in from right */
-    @keyframes cardEnterFromRight {
-      0%   { opacity:0; transform: translate(280%,0) scale(0.4) rotate(20deg); filter:blur(4px); }
-      50%  { opacity:1; transform: translate(-8%,0) scale(1.08) rotate(-3deg); filter:blur(0); }
-      70%  { transform: translate(4%,0) scale(0.96) rotate(1deg); }
-      85%  { transform: translate(-2%,0) scale(1.02) rotate(-0.5deg); }
-      100% { opacity:1; transform: translate(0,0) scale(1) rotate(0deg); }
-    }
-    /* 4: Erupts from bottom like a rocket */
-    @keyframes cardEnterFromBottom {
-      0%   { opacity:0; transform: translate(0,280%) scale(0.3) rotate(-10deg); filter:blur(4px); }
-      55%  { opacity:1; transform: translate(0,-10%) scale(1.1) rotate(2deg); filter:blur(0); }
-      72%  { transform: translate(0,5%) scale(0.96) rotate(-1deg); }
-      86%  { transform: translate(0,-2%) scale(1.02) rotate(0.5deg); }
-      100% { opacity:1; transform: translate(0,0) scale(1) rotate(0deg); }
-    }
-    /* 5: Pops from nothing at center — zooms in from tiny */
-    @keyframes cardEnterZoomPop {
-      0%   { opacity:0; transform: scale(0) rotate(0deg); filter:blur(8px); }
-      40%  { opacity:1; transform: scale(1.25) rotate(-5deg); filter:blur(1px); }
-      65%  { transform: scale(0.92) rotate(2deg); filter:blur(0); }
-      80%  { transform: scale(1.06) rotate(-1deg); }
-      90%  { transform: scale(0.98) rotate(0.5deg); }
-      100% { opacity:1; transform: scale(1) rotate(0deg); }
-    }
-    /* 6: Diagonal spiral from top-right corner */
-    @keyframes cardEnterSpiral {
-      0%   { opacity:0; transform: translate(200%,-200%) scale(0.1) rotate(360deg); filter:blur(6px); }
-      55%  { opacity:1; transform: translate(-4%,4%) scale(1.06) rotate(-8deg); filter:blur(0); }
-      72%  { transform: translate(2%,-2%) scale(0.97) rotate(3deg); }
-      86%  { transform: translate(-1%,1%) scale(1.02) rotate(-1deg); }
-      100% { opacity:1; transform: translate(0,0) scale(1) rotate(0deg); }
+    /* ─── Card slam entry animation: hard fly-in from top with squash-and-stretch impact ─── */
+    @keyframes cardSlam {
+      /* Card fires in from off-screen top at high speed */
+      0%   { opacity: 0; transform: translate(0, -320%) scale(0.5);       filter: blur(5px); }
+      20%  { opacity: 0.7; transform: translate(0, -80%) scale(0.7);      filter: blur(2px); }
+      /* IMPACT: card hits position — squash wide + compress tall */
+      42%  { opacity: 1; transform: translate(0, 0%) scaleX(1.13) scaleY(0.84); filter: blur(0); }
+      /* RECOIL: spring-back — narrow + stretch tall */
+      57%  { transform: translate(0, -5%) scaleX(0.94) scaleY(1.09); }
+      /* Second bounce — smaller */
+      70%  { transform: translate(0, 1.5%) scaleX(1.05) scaleY(0.96); }
+      /* Micro-oscillation settling */
+      82%  { transform: translate(0, -0.5%) scaleX(0.99) scaleY(1.01); }
+      91%  { transform: translate(0, 0.3%) scaleX(1.01) scaleY(0.99); }
+      100% { opacity: 1; transform: translate(0, 0) scale(1); }
     }
 
-    /* Card thud flash — brief screen shake-like highlight when card smacks into place */
+    /* Card thud flash — dramatic white impact burst when card smacks into place */
     @keyframes cardThudFlash {
-      0%   { box-shadow: 0 0 0 4px rgba(255,255,255,0.0); }
-      15%  { box-shadow: 0 0 0 8px rgba(255,255,255,0.6), 0 0 30px rgba(255,255,255,0.4); }
-      60%  { box-shadow: 0 0 0 4px rgba(255,255,255,0.1); }
+      0%   { box-shadow: 0 0 0 0px rgba(255,255,255,0.0); }
+      12%  { box-shadow: 0 0 0 12px rgba(255,255,255,0.75), 0 0 45px rgba(255,255,255,0.55), 0 0 80px rgba(200,220,255,0.3); }
+      35%  { box-shadow: 0 0 0 6px rgba(255,255,255,0.25), 0 0 20px rgba(255,255,255,0.2); }
       100% { box-shadow: none; }
     }
     .card-thud-flash {
-      animation: cardThudFlash 0.35s ease-out forwards !important;
+      animation: cardThudFlash 0.42s ease-out forwards !important;
     }
 
     /* ─── Green selection edge animation ─── */
