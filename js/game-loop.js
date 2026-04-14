@@ -760,7 +760,7 @@
 
       let dt = (time - lastTime) / 1000;
       if (window.BloodV2) window.BloodV2.update(dt);
-      if (window.BloodSimulatorV21 && typeof window.BloodSimulatorV21.update === 'function') window.BloodSimulatorV21.update(dt);
+      if (window.SlimePool) window.SlimePool.update(dt, player && player.mesh ? player.mesh.position : null);
       if (window.WaveSpawner) window.WaveSpawner.update(dt, player && player.mesh ? player.mesh.position : null);
       if (window.HitDetection) window.HitDetection.update(dt, player && player.mesh ? player.mesh.position : null);
       lastTime = time;
@@ -2637,7 +2637,7 @@
           p.explosionRadius = weapons.fireball.explosionRadius || 3;
           p.mesh.material.color.setHex(0xFF4400);
           _tmpEmissiveColor.setHex(0xFF2200);
-          p.mesh.material.emissive = _tmpEmissiveColor;
+          p.mesh.material.emissive.copy(_tmpEmissiveColor);
           p.mesh.material.emissiveIntensity = 0.6;
           p.mesh.scale.set(0.6, 0.6, 0.6);
           _rescaleProjSpeed(p, 0.35); // fireballs are lobbed slowly for explosive area damage
